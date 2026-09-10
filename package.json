@@ -1,0 +1,20 @@
+{
+  "name": "sofa",
+  "version": "0.1.0",
+  "description": "Agentic PR reviews at your comfort: a VS Code style diff view for GitHub pull requests.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "check": "npm run typecheck && npm test && npm run build",
+    "fake": "node build.mjs && node scripts/make-fake-forge.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,622 @@
+.sofa-tab {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.sofa-tab-icon {
+  vertical-align: text-bottom;
+}
+
+html.sofa-locked,
+html.sofa-locked body {
+  overflow: hidden !important;
+}
+
+/*
+ * Every colour and font below is taken from GitHub's own Primer custom
+ * properties, with the current Primer name first, the previous generation of
+ * names second, and a literal only as the last resort. That way Sofa follows
+ * whichever theme the user has picked (light, dark, dimmed, high contrast) with
+ * no theme handling of its own, and still renders correctly in test/harness.html
+ * where no Primer variables exist at all.
+ */
+.sofa-root {
+  --sofa-bg: var(--bgColor-default, var(--color-canvas-default, #ffffff));
+  --sofa-bg-muted: var(--bgColor-muted, var(--color-canvas-subtle, #f6f8fa));
+  --sofa-bg-inset: var(--bgColor-inset, var(--color-canvas-inset, #eef1f4));
+  --sofa-border: var(--borderColor-default, var(--color-border-default, #d0d7de));
+  --sofa-border-muted: var(--borderColor-muted, var(--color-border-muted, #d8dee4));
+  --sofa-text: var(--fgColor-default, var(--color-fg-default, #1f2328));
+  --sofa-text-muted: var(--fgColor-muted, var(--color-fg-muted, #636c76));
+  --sofa-accent: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+  --sofa-add-text: var(--fgColor-success, var(--color-success-fg, #1a7f37));
+  --sofa-del-text: var(--fgColor-danger, var(--color-danger-fg, #cf222e));
+  --sofa-add-bg: var(--diffBlob-addition-bgColor-line, var(--color-diff-blob-addition-line-bg, #e6ffec));
+  --sofa-add-gutter: var(--diffBlob-addition-bgColor-num, var(--color-diff-blob-addition-num-bg, #d2fadb));
+  --sofa-del-bg: var(--diffBlob-deletion-bgColor-line, var(--color-diff-blob-deletion-line-bg, #ffebe9));
+  --sofa-del-gutter: var(--diffBlob-deletion-bgColor-num, var(--color-diff-blob-deletion-num-bg, #ffd8d3));
+  --sofa-flash: var(--bgColor-attention-muted, var(--color-attention-subtle, #fff8c5));
+  --sofa-token-keyword: var(--color-prettylights-syntax-keyword, #cf222e);
+  --sofa-token-string: var(--color-prettylights-syntax-string, #0a3069);
+  --sofa-token-comment: var(--color-prettylights-syntax-comment, #6e7781);
+  --sofa-token-number: var(--color-prettylights-syntax-constant, #0550ae);
+  --sofa-font: var(--fontStack-sansSerif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif);
+  --sofa-font-mono: var(--fontStack-monospace, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace);
+
+  display: none;
+  flex-direction: column;
+  background: var(--sofa-bg);
+  color: var(--sofa-text);
+  font-family: var(--sofa-font);
+  font-size: 14px;
+}
+
+/*
+ * Harness-only fallbacks: the literals switch to their dark equivalents, while
+ * the Primer variables still win wherever they are defined.
+ */
+@media (prefers-color-scheme: dark) {
+  html[data-color-mode="auto"] .sofa-root,
+  html:not([data-color-mode]) .sofa-root {
+    --sofa-bg: var(--bgColor-default, var(--color-canvas-default, #0d1117));
+    --sofa-bg-muted: var(--bgColor-muted, var(--color-canvas-subtle, #151b23));
+    --sofa-bg-inset: var(--bgColor-inset, var(--color-canvas-inset, #010409));
+    --sofa-border: var(--borderColor-default, var(--color-border-default, #3d444d));
+    --sofa-border-muted: var(--borderColor-muted, var(--color-border-muted, #3d444d));
+    --sofa-text: var(--fgColor-default, var(--color-fg-default, #f0f6fc));
+    --sofa-text-muted: var(--fgColor-muted, var(--color-fg-muted, #9198a1));
+    --sofa-accent: var(--fgColor-accent, var(--color-accent-fg, #4493f8));
+    --sofa-add-text: var(--fgColor-success, var(--color-success-fg, #3fb950));
+    --sofa-del-text: var(--fgColor-danger, var(--color-danger-fg, #f85149));
+    --sofa-add-bg: var(--diffBlob-addition-bgColor-line, var(--color-diff-blob-addition-line-bg, rgba(46, 160, 67, 0.15)));
+    --sofa-add-gutter: var(--diffBlob-addition-bgColor-num, var(--color-diff-blob-addition-num-bg, rgba(46, 160, 67, 0.3)));
+    --sofa-del-bg: var(--diffBlob-deletion-bgColor-line, var(--color-diff-blob-deletion-line-bg, rgba(248, 81, 73, 0.15)));
+    --sofa-del-gutter: var(--diffBlob-deletion-bgColor-num, var(--color-diff-blob-deletion-num-bg, rgba(248, 81, 73, 0.3)));
+    --sofa-flash: var(--bgColor-attention-muted, var(--color-attention-subtle, rgba(187, 128, 9, 0.25)));
+    --sofa-token-keyword: var(--color-prettylights-syntax-keyword, #ff7b72);
+    --sofa-token-string: var(--color-prettylights-syntax-string, #a5d6ff);
+    --sofa-token-comment: var(--color-prettylights-syntax-comment, #9198a1);
+    --sofa-token-number: var(--color-prettylights-syntax-constant, #79c0ff);
+  }
+}
+
+html[data-color-mode="dark"] .sofa-root {
+  --sofa-bg: var(--bgColor-default, var(--color-canvas-default, #0d1117));
+  --sofa-bg-muted: var(--bgColor-muted, var(--color-canvas-subtle, #151b23));
+  --sofa-bg-inset: var(--bgColor-inset, var(--color-canvas-inset, #010409));
+  --sofa-border: var(--borderColor-default, var(--color-border-default, #3d444d));
+  --sofa-border-muted: var(--borderColor-muted, var(--color-border-muted, #3d444d));
+  --sofa-text: var(--fgColor-default, var(--color-fg-default, #f0f6fc));
+  --sofa-text-muted: var(--fgColor-muted, var(--color-fg-muted, #9198a1));
+  --sofa-accent: var(--fgColor-accent, var(--color-accent-fg, #4493f8));
+  --sofa-add-text: var(--fgColor-success, var(--color-success-fg, #3fb950));
+  --sofa-del-text: var(--fgColor-danger, var(--color-danger-fg, #f85149));
+  --sofa-add-bg: var(--diffBlob-addition-bgColor-line, var(--color-diff-blob-addition-line-bg, rgba(46, 160, 67, 0.15)));
+  --sofa-add-gutter: var(--diffBlob-addition-bgColor-num, var(--color-diff-blob-addition-num-bg, rgba(46, 160, 67, 0.3)));
+  --sofa-del-bg: var(--diffBlob-deletion-bgColor-line, var(--color-diff-blob-deletion-line-bg, rgba(248, 81, 73, 0.15)));
+  --sofa-del-gutter: var(--diffBlob-deletion-bgColor-num, var(--color-diff-blob-deletion-num-bg, rgba(248, 81, 73, 0.3)));
+  --sofa-flash: var(--bgColor-attention-muted, var(--color-attention-subtle, rgba(187, 128, 9, 0.25)));
+  --sofa-token-keyword: var(--color-prettylights-syntax-keyword, #ff7b72);
+  --sofa-token-string: var(--color-prettylights-syntax-string, #a5d6ff);
+  --sofa-token-comment: var(--color-prettylights-syntax-comment, #9198a1);
+  --sofa-token-number: var(--color-prettylights-syntax-constant, #79c0ff);
+}
+
+.sofa-root.is-open {
+  display: flex;
+}
+
+/*
+ * Inline mode sits in the page where GitHub's own diff would be, and grows with
+ * its content: the page does the vertical scrolling, the file tree sticks to the
+ * viewport beside it, and the file header sticks to the top of the code. Nothing
+ * here may clip overflow, or the sticky positioning would attach to this box
+ * instead of the viewport.
+ */
+.sofa-root--inline {
+  position: relative;
+  width: 100%;
+  margin-top: 16px;
+  border: 1px solid var(--sofa-border);
+  border-radius: 6px;
+  overflow: visible;
+}
+
+/* Overlay mode is the fallback for a layout the inline host was not found in. */
+.sofa-root--overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+}
+
+/*
+ * The fallback overlay is pinned to the viewport, so nothing outside it can
+ * scroll: its columns stretch to the panel's height and scroll internally,
+ * which is the opposite of the inline layout above.
+ */
+.sofa-root--overlay .sofa-body {
+  align-items: stretch;
+  min-height: 0;
+}
+
+.sofa-root--overlay .sofa-sidebar {
+  position: static;
+  max-height: none;
+}
+
+.sofa-root--overlay .sofa-main {
+  min-height: 0;
+}
+
+.sofa-root--overlay .sofa-file-body {
+  overflow: auto;
+}
+
+.sofa-root * {
+  box-sizing: border-box;
+}
+
+.sofa-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--sofa-border);
+  background: var(--sofa-bg-muted);
+  flex: 0 0 auto;
+}
+
+.sofa-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sofa-logo {
+  font-weight: 600;
+}
+
+.sofa-subject {
+  color: var(--sofa-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.sofa-toolbar-meta {
+  display: flex;
+  gap: 10px;
+  color: var(--sofa-text-muted);
+  margin-right: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sofa-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Shaped after Primer's small button, without depending on its class names. */
+.sofa-btn {
+  appearance: none;
+  border: 1px solid var(--sofa-border);
+  border-radius: 6px;
+  background: var(--sofa-bg-muted);
+  color: var(--sofa-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 12px;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.sofa-btn:hover {
+  background: var(--sofa-bg-inset);
+  border-color: var(--sofa-border);
+}
+
+.sofa-btn--primary {
+  color: var(--sofa-accent);
+}
+
+.sofa-banner {
+  padding: 8px 16px;
+  background: var(--sofa-flash);
+  border-bottom: 1px solid var(--sofa-border);
+  color: var(--sofa-text);
+  font-size: 12px;
+}
+
+.sofa-body {
+  display: flex;
+  align-items: flex-start;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sofa-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: 100vh;
+  width: 320px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--sofa-bg);
+  border-right: 1px solid var(--sofa-border);
+}
+
+.sofa-sidebar-head {
+  padding: 8px;
+  flex: 0 0 auto;
+}
+
+.sofa-filter {
+  width: 100%;
+  padding: 5px 12px;
+  border: 1px solid var(--sofa-border);
+  border-radius: 6px;
+  background: var(--sofa-bg);
+  color: var(--sofa-text);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.sofa-filter:focus {
+  outline: 2px solid var(--sofa-accent);
+  outline-offset: -1px;
+  border-color: var(--sofa-accent);
+}
+
+.sofa-tree-mount {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding-bottom: 8px;
+}
+
+.sofa-sidebar-meta,
+.sofa-shortcuts {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border-top: 1px solid var(--sofa-border-muted);
+  color: var(--sofa-text-muted);
+  font-size: 11px;
+}
+
+.sofa-resizer {
+  flex: 0 0 auto;
+  width: 5px;
+  margin-left: -3px;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 1;
+}
+
+.sofa-resizer:hover {
+  background: var(--sofa-accent);
+  opacity: 0.4;
+}
+
+.sofa-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sofa-tree-item {
+  margin: 0;
+}
+
+.sofa-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  padding: 5px 8px;
+  cursor: pointer;
+  line-height: 20px;
+}
+
+/* Icons inherit their colour, matching how GitHub tints its own Octicons. */
+.sofa-tree-row svg {
+  flex: 0 0 auto;
+  fill: currentColor;
+  display: block;
+}
+
+.sofa-tree-icon {
+  color: var(--sofa-text-muted);
+}
+
+.sofa-tree-icon--dir {
+  color: var(--treeViewItem-leadingVisual-bgColor-rest, var(--color-scale-blue-3, #54aeff));
+}
+
+.sofa-tree-row:hover {
+  background: var(--sofa-bg-muted);
+}
+
+.sofa-tree-row.is-selected {
+  background: var(--sofa-accent);
+  color: var(--fgColor-onEmphasis, var(--color-fg-on-emphasis, #ffffff));
+}
+
+.sofa-tree-row.is-selected .sofa-add,
+.sofa-tree-row.is-selected .sofa-del,
+.sofa-tree-row.is-selected .sofa-status,
+.sofa-tree-row.is-selected .sofa-tree-caret {
+  color: inherit;
+}
+
+.sofa-tree-row.is-viewed .sofa-tree-name {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.sofa-tree-caret {
+  color: var(--sofa-text-muted);
+  transform: scale(0.85);
+}
+
+.sofa-tree-row--dir {
+  color: var(--sofa-text);
+}
+
+.sofa-tree-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sofa-tree-counts {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sofa-status {
+  flex: 0 0 auto;
+  color: var(--sofa-text-muted);
+  transform: scale(0.8);
+}
+
+.sofa-status--added {
+  color: var(--sofa-add-text);
+}
+
+.sofa-status--deleted {
+  color: var(--sofa-del-text);
+}
+
+.sofa-status--modified {
+  color: var(--fgColor-attention, var(--color-attention-fg, #9a6700));
+}
+
+.sofa-status--renamed {
+  color: var(--sofa-accent);
+}
+
+.sofa-add {
+  color: var(--sofa-add-text);
+}
+
+.sofa-del {
+  color: var(--sofa-del-text);
+}
+
+.sofa-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sofa-file-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--sofa-border);
+  background: var(--sofa-bg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.sofa-file-header .sofa-status {
+  font-family: var(--sofa-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  transform: none;
+}
+
+.sofa-file-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sofa-file-path {
+  font-family: var(--sofa-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sofa-file-counts {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.sofa-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.sofa-viewed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--sofa-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sofa-file-note {
+  flex: 1 0 100%;
+  color: var(--sofa-text-muted);
+  font-size: 12px;
+}
+
+.sofa-file-note--warn {
+  color: var(--sofa-del-text);
+}
+
+/*
+ * Only the horizontal axis scrolls here. With no height set the box grows to fit
+ * every row, so the implied vertical `auto` never produces a scrollbar and long
+ * lines still scroll sideways under the sticky line-number gutters.
+ */
+.sofa-file-body {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  background: var(--sofa-bg);
+}
+
+.sofa-row {
+  display: grid;
+  grid-template-columns: 52px 52px 18px 1fr;
+  width: max-content;
+  min-width: 100%;
+  font-family: var(--sofa-font-mono);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.sofa-gutter {
+  position: sticky;
+  padding: 0 10px;
+  text-align: right;
+  color: var(--sofa-text-muted);
+  background: var(--sofa-bg);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.sofa-gutter:first-child {
+  left: 0;
+}
+
+.sofa-gutter:nth-child(2) {
+  left: 52px;
+}
+
+.sofa-sign {
+  position: sticky;
+  left: 104px;
+  text-align: center;
+  color: var(--sofa-text-muted);
+  background: var(--sofa-bg);
+  user-select: none;
+  border-left: 1px solid var(--sofa-border-muted);
+}
+
+.sofa-code {
+  padding: 0 10px 0 6px;
+}
+
+.sofa-row--add {
+  background: var(--sofa-add-bg);
+}
+
+.sofa-row--add .sofa-gutter,
+.sofa-row--add .sofa-sign {
+  background: var(--sofa-add-gutter);
+}
+
+.sofa-row--del {
+  background: var(--sofa-del-bg);
+}
+
+.sofa-row--del .sofa-gutter,
+.sofa-row--del .sofa-sign {
+  background: var(--sofa-del-gutter);
+}
+
+.sofa-row--sep,
+.sofa-row--skip {
+  display: block;
+  width: auto;
+  background: var(--sofa-bg-muted);
+  color: var(--sofa-text-muted);
+  padding: 2px 16px;
+  border-top: 1px solid var(--sofa-border-muted);
+  border-bottom: 1px solid var(--sofa-border-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sofa-row.is-flash {
+  animation: sofa-flash 0.7s ease-out;
+}
+
+@keyframes sofa-flash {
+  from {
+    background: var(--sofa-flash);
+  }
+}
+
+.sofa-empty {
+  padding: 24px 16px;
+  color: var(--sofa-text-muted);
+  font-size: 12px;
+}
+
+.sofa-t-k {
+  color: var(--sofa-token-keyword);
+}
+
+.sofa-t-s {
+  color: var(--sofa-token-string);
+}
+
+.sofa-t-c {
+  color: var(--sofa-token-comment);
+}
+
+.sofa-t-n {
+  color: var(--sofa-token-number);
+}
