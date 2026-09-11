@@ -1,15 +1,15 @@
 # Publishes the landing page to GitHub Pages.
 #
-# Pages' branch deployments can only serve the repository root or docs/, and
-# docs/ is reserved for documentation, so the site is uploaded as an artifact
-# instead. Set Settings > Pages > Source to "GitHub Actions" for this to run.
+# The site is a Vite app now, so it has to be built before it can be uploaded.
+# Set Settings > Pages > Source to "GitHub Actions" for this to run.
 name: pages
 
 on:
   push:
     branches: [main]
     paths:
-      - 'landing/**'
+      - 'apps/landing/**'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -32,9 +32,16 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sofa/landing build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: landing
+          path: apps/landing/dist
       - id: deployment
         uses: actions/deploy-pages@v4

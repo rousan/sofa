@@ -6,10 +6,10 @@
  * because a real source file routinely runs to thousands of lines and the
  * difference is between an instant file switch and a visible stall.
  */
-import { el, escapeHtml, formatCount } from '../util.ts';
-import { highlightLine, languageFor, newHighlightState } from '../highlight.ts';
+import { escapeHtml, formatCount, highlightLine, languageFor, newHighlightState } from '@sofa/core';
+import { el } from '../util.ts';
 import { blobUrl } from '../github.ts';
-import type { DiffFile, FileModel, PrContext, Row, ViewMode } from '../types.ts';
+import type { DiffFile, FileModel, PrContext, Row, ViewMode } from '@sofa/core';
 
 /**
  * Above this many rows the viewer refuses to lay out the whole file and shows

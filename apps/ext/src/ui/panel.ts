@@ -6,12 +6,12 @@
  * state changes. It is created on first open and then reused, so returning to
  * the Sofa tab does not refetch the diff.
  */
-import { debounce, el, formatCount, loadViewed, readSetting, saveViewed, writeSetting } from '../util.ts';
+import { buildFileModel, debounce, formatCount } from '@sofa/core';
+import { el, loadViewed, readSetting, saveViewed, writeSetting } from '../util.ts';
 import { buildTree, flattenPaths, renderTree } from './tree.ts';
 import { renderFile } from './viewer.ts';
-import { buildFileModel } from '../model.ts';
 import * as forge from '../github.ts';
-import type { DiffFile, FileModel, PrContext, ViewMode } from '../types.ts';
+import type { DiffFile, FileModel, PrContext, ViewMode } from '@sofa/core';
 import type { ViewerHandle } from './viewer.ts';
 
 /**

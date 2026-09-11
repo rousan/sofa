@@ -10,8 +10,8 @@
  *   - `<pull-request>.diff`   the whole pull request as one unified diff
  *   - `/raw/<sha>/<path>`     the full text of one file at the head commit
  */
-import { parseUnifiedDiff } from './diff.ts';
-import type { DiffFile, PrContext } from './types.ts';
+import { parseUnifiedDiff } from '@sofa/core';
+import type { DiffFile, PrContext } from '@sofa/core';
 
 /**
  * Cache of fetched file text, keyed by commit sha and path.

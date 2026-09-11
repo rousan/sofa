@@ -7,7 +7,7 @@
  * here splice the hunks back into the complete file: one row per line of the
  * file, with the removed lines interleaved where they used to be.
  */
-import { splitLines } from './util.ts';
+import { splitLines } from './text.ts';
 import type { DiffFile, FileModel, Row } from './types.ts';
 
 /**

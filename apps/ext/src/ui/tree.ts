@@ -6,7 +6,7 @@
  * what keeps a deep monorepo path readable in a narrow sidebar.
  */
 import { el } from '../util.ts';
-import type { DiffFile, FileStatus } from '../types.ts';
+import type { DiffFile, FileStatus } from '@sofa/core';
 
 /**
  * A directory in the tree.

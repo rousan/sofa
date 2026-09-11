@@ -6,7 +6,7 @@
  * tokenises only what carries most of the visual signal: comments, strings,
  * numbers and keywords. Anything it does not recognise becomes plain text.
  */
-import { escapeHtml } from './util.ts';
+import { escapeHtml } from './text.ts';
 
 /**
  * The language families the highlighter knows about.

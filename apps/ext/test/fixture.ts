@@ -8,7 +8,7 @@
  * merge in `src/model.ts` is exercised on genuinely consistent input.
  */
 import type { DiffSource } from '../src/ui/panel.ts';
-import { parseUnifiedDiff } from '../src/diff.ts';
+import { parseUnifiedDiff } from '@sofa/core';
 
 /**
  * A long-ish source file whose only change sits deep inside a function, which

@@ -103,5 +103,5 @@ for (const [path, body] of Object.entries(headFileTexts)) {
 await symlink(relative(OUT, 'dist'), join(OUT, 'dist'), 'dir');
 
 console.log(`fake forge written to ${OUT}`);
-console.log(`serve it with:  python3 -m http.server 3054 --directory ${OUT}`);
+console.log(`serve it with:  python3 -m http.server 3054 --directory apps/ext/${OUT}`);
 console.log(`then open:      http://127.0.0.1:3054/${OWNER}/${REPO}/pull/${NUMBER}/files/`);

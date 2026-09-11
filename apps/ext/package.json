@@ -1,0 +1,22 @@
+{
+  "name": "@sofa/ext",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
+    "package": "node scripts/build.mjs && cd dist && zip -qr ../sofa-$npm_package_version.zip . -x '*.map' 'harness.js' && echo wrote apps/ext/sofa-$npm_package_version.zip",
+    "fake": "node scripts/build.mjs && node scripts/make-fake-forge.mjs",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "dependencies": {
+    "@sofa/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "vite": "^6.0.0"
+  }
+}

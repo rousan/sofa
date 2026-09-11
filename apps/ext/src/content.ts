@@ -4,10 +4,10 @@
  * GitHub navigates without full page loads, so the tab is re-injected whenever
  * the DOM settles on a new pull request view rather than only once at load.
  */
-import { debounce } from './util.ts';
+import { debounce } from '@sofa/core';
 import { parseLocation } from './github.ts';
 import { closePanel, isPanelOpen, openPanel } from './ui/panel.ts';
-import type { PrContext } from './types.ts';
+import type { PrContext } from '@sofa/core';
 
 /**
  * Attribute marking a tab this script injected, so it is never added twice.
