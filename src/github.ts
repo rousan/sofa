@@ -40,20 +40,134 @@ export function parseLocation(location: Location | URL = window.location): PrCon
 }
 
 /**
- * Fetch a URL as text using the browser's forge session.
+ * How long to wait for the page-world bridge before deciding it is not there.
+ */
+const BRIDGE_TIMEOUT_MS = 4000;
+
+/**
+ * Whether the page-world bridge has ever answered.
+ *
+ * Once it has failed to reply, later requests skip it rather than pay the
+ * timeout again. The offline harness, where no bridge is injected, hits this.
+ */
+let bridgeAvailable: boolean | null = null;
+
+/**
+ * The reply shape the page-world bridge posts back.
+ */
+interface BridgeReply {
+  /** Whether the response status was in the success range. */
+  ok: boolean;
+  /** HTTP status, or 0 when the request never completed. */
+  status: number;
+  /** HTTP status text, or a short reason when the request never completed. */
+  statusText: string;
+  /** The body, empty unless `ok`. */
+  text: string;
+}
+
+/**
+ * Fetch a URL through the page-world bridge.
+ *
+ * @param url - Absolute, same-origin URL to fetch.
+ * @returns The bridge's reply, or null when no bridge answered in time.
+ */
+function fetchViaPage(url: string): Promise<BridgeReply | null> {
+  return new Promise((resolve) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      bridgeAvailable = false;
+      resolve(null);
+    }, BRIDGE_TIMEOUT_MS);
+
+    /**
+     * Resolve the promise when the bridge answers this particular request.
+     *
+     * @param event - A message event on the page's window.
+     */
+    function onMessage(event: MessageEvent): void {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data as { kind?: string; id?: string } | undefined;
+      if (!data || data.kind !== 'sofa:fetch-response' || data.id !== id) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      bridgeAvailable = true;
+      resolve(data as unknown as BridgeReply);
+    }
+
+    window.addEventListener('message', onMessage);
+    window.postMessage({ kind: 'sofa:fetch-request', id, url }, window.location.origin);
+  });
+}
+
+/**
+ * Fetch a URL through the extension's service worker.
+ *
+ * @param url - Absolute URL to fetch.
+ * @returns The worker's reply, or null when there is no worker to ask.
+ */
+async function fetchViaWorker(url: string): Promise<BridgeReply | null> {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return null;
+  try {
+    const reply = await chrome.runtime.sendMessage({ kind: 'sofa:fetch', url });
+    return (reply as BridgeReply | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch a URL as text from the content script's own context.
  *
  * @param url - Absolute URL to fetch.
  * @returns The response body.
  * @throws When the response status is not ok.
  */
-export async function fetchText(url: string): Promise<string> {
+async function fetchDirect(url: string): Promise<string> {
   const response = await fetch(url, {
     credentials: 'include',
     headers: { Accept: 'text/plain, */*' },
     redirect: 'follow',
   });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim());
   return response.text();
+}
+
+/**
+ * Fetch a URL as text using the browser's forge session.
+ *
+ * Three routes, because no single one works everywhere:
+ *
+ *  - The service worker. The canonical Manifest V3 route, and the only one with
+ *    a CORS exemption, which github.com needs: its `.diff` redirects to
+ *    patch-diff.githubusercontent.com, and a content script's own fetch of that
+ *    is rejected for a missing allow-origin header.
+ *  - The page-world bridge. Needed where a forge refuses requests attributed to
+ *    the extension: GitHub Enterprise redirects `.diff` to a media path that
+ *    answers 403 to those while serving the identical URL to the page.
+ *  - A direct fetch, which is all the offline harness has.
+ *
+ * @param url - Absolute URL to fetch.
+ * @returns The response body.
+ * @throws When no route could fetch it.
+ */
+export async function fetchText(url: string): Promise<string> {
+  const viaWorker = await fetchViaWorker(url);
+  if (viaWorker?.ok) return viaWorker.text;
+
+  const sameOrigin = new URL(url, window.location.href).origin === window.location.origin;
+  const hasBridge = document.documentElement.hasAttribute('data-sofa-bridge');
+  if (sameOrigin && hasBridge && bridgeAvailable !== false) {
+    const viaPage = await fetchViaPage(url);
+    if (viaPage?.ok) return viaPage.text;
+    if (viaPage && viaWorker) {
+      // Both privileged routes answered and both refused, so the forge means it.
+      throw new Error(`${viaWorker.status || viaPage.status} ${viaWorker.statusText || viaPage.statusText}`.trim());
+    }
+  }
+
+  return fetchDirect(url);
 }
 
 /**

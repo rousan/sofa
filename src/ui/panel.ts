@@ -75,6 +75,11 @@ export interface PanelOptions {
    * to a full-viewport overlay.
    */
   anchor?: Element | null;
+  /**
+   * Finds the tab bar again after the page has re-rendered and thrown the
+   * previous one away.
+   */
+  findAnchor?: () => Element | null;
   /** Called with the file count once the diff has loaded, for the tab counter. */
   onFileCount?: (count: number) => void;
 }
@@ -103,6 +108,30 @@ export interface Panel {
  * The live panel, or null before the first open.
  */
 let instance: Panel | null = null;
+
+/**
+ * Turn a failed diff fetch into something the reader can act on.
+ *
+ * The status codes each mean something specific here, and a bare number sends
+ * people looking in the wrong place: a 403 is almost always the forge throttling
+ * repeated .diff downloads rather than a permissions problem, and a 404 on a
+ * page that plainly exists means the session is not being sent.
+ *
+ * @param err - Whatever the load threw.
+ * @returns A sentence for the banner.
+ */
+function describeLoadFailure(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.startsWith('403')) {
+    return `Could not load the diff (${message.trim()}). The forge refused it, usually because it is `
+      + 'throttling repeated diff downloads. Wait a moment, then use Reload diff.';
+  }
+  if (message.startsWith('404')) {
+    return `Could not load the diff (${message.trim()}). The pull request was not found, which usually `
+      + 'means the session has expired; reload the page and sign in again.';
+  }
+  return `Could not load the diff: ${message}`;
+}
 
 /**
  * Find the element after which GitHub renders the pull request tab's content.
@@ -420,7 +449,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       else setViewerMessage('This pull request has no file changes.');
     } catch (err) {
       loaded = false;
-      setBanner(`Could not load the diff: ${err instanceof Error ? err.message : String(err)}`);
+      setBanner(describeLoadFailure(err));
       viewerMount.textContent = '';
     }
   }
@@ -511,10 +540,55 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
    */
   let hiddenSiblings: { node: HTMLElement; display: string }[] = [];
 
+  /**
+   * Finds the tab bar to mount against, called again on every re-mount.
+   *
+   * A stored element is no use here: React replaces the nav wholesale, so the
+   * node that was found at open time is detached by the time it is needed.
+   */
+  const findAnchor = options.findAnchor ?? (() => null);
+
+  /**
+   * Watches the container the panel lives in.
+   *
+   * GitHub renders the pull request with React and re-renders that container on
+   * its own schedule, which throws away anything injected into it. Without this,
+   * the panel silently disappears mid-review.
+   */
+  let hostObserver: MutationObserver | null = null;
+
+  /**
+   * Put the panel back if the page threw it away, and hide any content the page
+   * re-added behind it.
+   */
+  function remountIfNeeded(): void {
+    if (!panel.isOpen() || element.classList.contains('sofa-root--overlay')) return;
+    const marker = findContentMarker(findAnchor());
+    if (!marker) return;
+    const displaced = hiddenSiblings.some((entry) => !entry.node.isConnected);
+    if (!element.isConnected || displaced || element.previousElementSibling !== marker) {
+      hiddenSiblings = takeOverContent(element, marker);
+    }
+  }
+
+  /**
+   * Watch the document for the page replacing the panel's container.
+   *
+   * The whole body is watched rather than one container, because a React
+   * re-render can replace any ancestor, taking the container with it. The
+   * callback is debounced and does nothing but a connectivity check, so the
+   * breadth costs little.
+   */
+  function watchHost(): void {
+    hostObserver?.disconnect();
+    hostObserver = new MutationObserver(debounce(remountIfNeeded, 50));
+    hostObserver.observe(document.body, { childList: true, subtree: true });
+  }
+
   const panel: Panel = {
     ctx,
     open(anchor) {
-      const marker = findContentMarker(anchor ?? options.anchor ?? null);
+      const marker = findContentMarker(anchor ?? findAnchor());
       if (marker) {
         // Inline: stand in for GitHub's own tab content, leaving its tab bar,
         // header and navigation untouched above.
@@ -525,6 +599,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
           restoreSiblings(hiddenSiblings);
           hiddenSiblings = takeOverContent(element, marker);
         }
+        watchHost();
       } else {
         // Fallback: an unreadable layout still gets a usable full-screen panel.
         element.classList.add('sofa-root--overlay');
@@ -538,6 +613,8 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     close() {
       element.classList.remove('is-open');
       document.documentElement.classList.remove('sofa-locked');
+      hostObserver?.disconnect();
+      hostObserver = null;
       restoreSiblings(hiddenSiblings);
       panel.onClose?.();
     },
@@ -546,6 +623,8 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     },
     destroy() {
       document.removeEventListener('keydown', onKeyDown, true);
+      hostObserver?.disconnect();
+      hostObserver = null;
       restoreSiblings(hiddenSiblings);
       element.remove();
       document.documentElement.classList.remove('sofa-locked');

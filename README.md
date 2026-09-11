@@ -101,6 +101,11 @@ the browser session you are already logged in with, so private repositories and
 GitHub Enterprise work unchanged.
 
 1. `<pull-request>.diff` gives the whole pull request as one unified diff.
+   Fetching it takes three routes, because none works everywhere: the service
+   worker (the only one with a CORS exemption, which github.com needs since its
+   `.diff` redirects to another host), a script in the page's own world (for
+   Enterprise, whose media path answers 403 to anything attributed to an
+   extension), and a plain fetch for the offline harness.
 2. The head commit sha comes from the JSON the page embeds, or a blob link on the
    page, or the last commit in `<pull-request>.patch`.
 3. `/raw/<sha>/<path>` gives each file's full text, fetched lazily per file.
@@ -131,7 +136,8 @@ manifest.json          extension manifest (paths are rewritten into dist/)
 build.mjs              esbuild driver: bundles every entry, copies the assets
 src/
   content.ts           entry: injects the Sofa tab, tracks SPA navigation
-  background.ts        service worker: registers content scripts for granted hosts
+  background.ts        service worker: content script registration and fetch relay
+  fetch-bridge.ts      page-world fetch relay, for forges that refuse extensions
   popup.ts/.html       toolbar popup: add or remove Enterprise hosts
   permissions.ts       host pattern handling shared by the popup and the worker
   github.ts            all forge fetches and head-sha resolution

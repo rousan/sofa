@@ -162,6 +162,7 @@ function open(ctx: PrContext): void {
     // The tab bar doubles as the anchor: the panel replaces whatever GitHub
     // renders below it, which is what makes Sofa act like a native tab.
     anchor: filesTab,
+    findAnchor: () => findFilesTab(ctx),
     onFileCount: setTabCount,
     onClose: () => {
       setTabActive(false);

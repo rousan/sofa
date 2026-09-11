@@ -31,6 +31,7 @@ const shared = {
  */
 const entries = [
   { entryPoints: ['src/content.ts'], outfile: 'dist/content.js' },
+  { entryPoints: ['src/fetch-bridge.ts'], outfile: 'dist/fetch-bridge.js' },
   { entryPoints: ['src/background.ts'], outfile: 'dist/background.js' },
   { entryPoints: ['src/popup.ts'], outfile: 'dist/popup.js' },
   { entryPoints: ['test/harness.ts'], outfile: 'dist/harness.js' },
