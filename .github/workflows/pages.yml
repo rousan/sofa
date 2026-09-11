@@ -1,0 +1,40 @@
+# Publishes the landing page to GitHub Pages.
+#
+# Pages' branch deployments can only serve the repository root or docs/, and
+# docs/ is reserved for documentation, so the site is uploaded as an artifact
+# instead. Set Settings > Pages > Source to "GitHub Actions" for this to run.
+name: pages
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one midway: a half-finished
+# deployment would leave the site down.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: landing
+      - id: deployment
+        uses: actions/deploy-pages@v4
