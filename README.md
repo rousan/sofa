@@ -18,15 +18,15 @@ lines highlighted and removed lines interleaved where they used to be.
 ## Install
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 Then in Chrome: `chrome://extensions` → enable **Developer mode** → **Load
-unpacked** → pick the **`dist/`** folder (the build writes a self-contained
-manifest there). Open any pull request and click the **Sofa** tab.
+unpacked** → pick the **`apps/ext/dist/`** folder (the build writes a
+self-contained manifest there). Open any pull request and click the **Sofa** tab.
 
-`npm run watch` rebuilds on change; hit the reload icon on the extension card and
+`pnpm --filter @sofa/ext watch` rebuilds on change; hit the reload icon on the extension card and
 refresh the pull request to pick a rebuild up.
 
 ### Adding a GitHub Enterprise host
@@ -131,50 +131,52 @@ plus at least one 1280x800 screenshot.
 
 ## Layout
 
+A pnpm workspace: two apps and the package they share.
+
 ```
-manifest.json          extension manifest (paths are rewritten into dist/)
-landing/               the site at sofa.rousanali.com, deployed by a Pages workflow
-store/                 Chrome Web Store listing copy and screenshot
-build.mjs              esbuild driver: bundles every entry, copies the assets
-src/
-  content.ts           entry: injects the Sofa tab, tracks SPA navigation
-  background.ts        service worker: content script registration and fetch relay
-  fetch-bridge.ts      page-world fetch relay, for forges that refuse extensions
-  popup.ts/.html       toolbar popup: add or remove Enterprise hosts
-  permissions.ts       host pattern handling shared by the popup and the worker
-  github.ts            all forge fetches and head-sha resolution
-  diff.ts              unified diff parser
-  model.ts             splices hunks into the full file
-  highlight.ts         small dependency-free syntax highlighter
-  util.ts              helpers plus viewed-state persistence
-  ui/panel.ts          the panel: toolbar, sidebar, state, mounting
-  ui/tree.ts           the file tree
-  ui/viewer.ts         the file renderer
-  sofa.css             all styling, driven by GitHub's Primer variables
-test/
-  model.test.ts        parser and merge tests (node --test)
-  permissions.test.ts  host pattern tests
-  harness.html         renders the panel from a fixture, no network needed
-  fixture.ts           the fixture pull request
+packages/core/         the forge-agnostic half: diff parser, model, highlighter
+  src/diff.ts          unified diff parser
+  src/model.ts         splices hunks into the full file
+  src/highlight.ts     small dependency-free syntax highlighter
+  src/types.ts         the shapes everything passes around
+  test/                parser and merge tests (node --test)
+
+apps/ext/              the Chrome extension
+  manifest.json        paths are rewritten into dist/ at build time
+  scripts/build.mjs    Vite, once per entry, because each bundle is an IIFE
+  src/content.ts       injects the Sofa tab, tracks SPA navigation
+  src/background.ts    service worker: script registration and the fetch relay
+  src/fetch-bridge.ts  page-world fetch relay, for forges that refuse extensions
+  src/popup.ts/.html   add or remove Enterprise hosts
+  src/github.ts        all forge fetches and head-sha resolution
+  src/ui/              the panel, the file tree, the file viewer
+  src/sofa.css         styling, driven by GitHub's Primer variables
+  store/               Chrome Web Store listing copy and screenshot
+  test/harness.html    renders the panel from a fixture, no network needed
+
+apps/landing/          the site at sofa.rousanali.com (React, Vite, Tailwind)
 ```
 
 ## Development
 
 ```bash
-npm run typecheck   # tsc --noEmit
-npm test            # node --test (native TypeScript)
-npm run build       # bundle into dist/
-npm run check       # all three
+pnpm typecheck                      # tsc across the workspace
+pnpm test                           # node --test, native TypeScript
+pnpm build                          # every package
+pnpm check                          # all three
+pnpm dev                            # the landing page, with hot reload
+pnpm package                        # zip the extension for the Web Store
 ```
 
-Two offline ways to work without a real pull request:
+Two offline ways to work on the extension without a real pull request:
 
 ```bash
-npm run build && python3 -m http.server 8080      # then open /test/harness.html
-npm run fake  && python3 -m http.server 8080 --directory test/fake
+pnpm --filter @sofa/ext build && python3 -m http.server 8080
+pnpm --filter @sofa/ext fake  && python3 -m http.server 8080 --directory apps/ext/test/fake
 ```
 
-`harness.html` renders the panel straight from a fixture. `npm run fake` builds a
-throwaway static site that looks like a pull request — tab bar, `.diff` endpoint,
-`/raw/` files — and loads the real content script against it, which is the only
-way to exercise the tab injection and the content takeover without a forge.
+The first serves `apps/ext/test/harness.html`, which renders the panel straight
+from a fixture. The second builds a throwaway static site shaped like a pull
+request - tab bar, `.diff` endpoint, `/raw/` files - and loads the real content
+script against it, which is the only way to exercise the tab injection and the
+content takeover without a forge.

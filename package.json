@@ -1,23 +1,19 @@
 {
   "name": "sofa",
   "version": "0.2.0",
-  "description": "Agentic PR reviews at your comfort: a VS Code style diff view for GitHub pull requests.",
+  "description": "Agentic PR reviews at your comfort.",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build.mjs",
-    "watch": "node build.mjs --watch",
-    "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.ts",
-    "check": "npm run typecheck && npm test && npm run build",
-    "fake": "node build.mjs && node scripts/make-fake-forge.mjs",
-    "package": "node build.mjs && cd dist && zip -qr ../sofa-$npm_package_version.zip . -x '*.map' 'harness.js' && echo 'wrote sofa-'$npm_package_version'.zip'",
-    "icons": "node scripts/make-icons.mjs"
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "dev": "pnpm --filter @sofa/landing dev",
+    "package": "pnpm --filter @sofa/ext package"
   },
   "devDependencies": {
-    "@types/chrome": "^0.2.9",
-    "@types/node": "^22.20.2",
-    "esbuild": "^0.25.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
   }
 }

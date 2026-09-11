@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-color-mode="light">
+<head>
+  <meta charset="utf-8" />
+  <title>Normalise chart settings props #42</title>
+  <link rel="stylesheet" href="/dist/sofa.css" />
+  <style>
+    body { margin: 0; font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; }
+    .page { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+    h1 { font-size: 32px; font-weight: 400; margin: 24px 0 8px; }
+    .tabnav-tabs { display: flex; gap: 8px; border-bottom: 1px solid #d0d7de; margin-top: 16px; }
+    .tabnav-tab { padding: 8px 16px; text-decoration: none; color: #1f2328; font-size: 14px;
+      border: 1px solid transparent; border-radius: 6px 6px 0 0; margin-bottom: -1px; }
+    .tabnav-tab.selected { background: #fff; border-color: #d0d7de; border-bottom-color: #fff; font-weight: 600; }
+    .Counter { background: #eaeef2; border-radius: 10px; padding: 0 6px; font-size: 12px; }
+    .pr-toolbar, .diff-view { border: 1px solid #d0d7de; border-radius: 6px; margin-top: 16px; padding: 16px; color: #636c76; }
+  </style>
+</head>
+<body>
+  <script type="application/json">{"headRefOid":"ffffffffffffffffffffffffffffffffffffffff"}</script>
+  <div class="page">
+    <h1>Normalise chart settings props <span>#42</span></h1>
+    <nav class="tabnav-tabs" aria-label="Pull request tabs">
+      <a class="tabnav-tab" href="/acme/webapp/pull/42">Conversation <span class="Counter">82</span></a>
+      <a class="tabnav-tab" href="/acme/webapp/pull/42/commits">Commits <span class="Counter">32</span></a>
+      <a class="tabnav-tab" href="/acme/webapp/pull/42/checks">Checks <span class="Counter">11</span></a>
+      <a class="tabnav-tab selected" href="/acme/webapp/pull/42/files" aria-current="page">Files changed <span class="Counter">5</span></a>
+    </nav>
+    <div class="pr-toolbar">GitHub's own diff toolbar. Sofa hides this while it is open.</div>
+    <div class="diff-view">GitHub's own diff. Sofa hides this while it is open.</div>
+  </div>
+  <!-- The extension's own bundle, loaded as a page script so the fake forge can
+       be driven in a plain browser with no extension installed. -->
+  <script src="/dist/content.js"></script>
+</body>
+</html>
