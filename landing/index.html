@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sofa - read a pull request like an editor</title>
+    <meta name="description" content="A Chrome extension that reviews GitHub pull requests as whole files: file tree on the left, the diff spliced into the full file on the right." />
+    <link rel="icon" href="icon.png" />
+    <meta property="og:title" content="Sofa" />
+    <meta property="og:description" content="Read a pull request like an editor: whole files, with the diff spliced in." />
+    <meta property="og:image" content="https://sofa.rousanali.com/screenshot.png" />
+    <meta property="og:url" content="https://sofa.rousanali.com" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --bg-soft: #f6f8fa;
+        --fg: #1f2328;
+        --muted: #59636e;
+        --border: #d1d9e0;
+        --accent: #4b3dd6;
+        --add: #1a7f37;
+        --del: #cf222e;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0d1117;
+          --bg-soft: #151b23;
+          --fg: #f0f6fc;
+          --muted: #9198a1;
+          --border: #3d444d;
+          --accent: #a6a0ff;
+          --add: #3fb950;
+          --del: #f85149;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+
+      header { padding: 72px 0 40px; text-align: center; }
+
+      .mark {
+        width: 72px; height: 72px; border-radius: 16px; display: block; margin: 0 auto 20px;
+      }
+
+      h1 { font-size: 40px; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; }
+
+      .tagline { font-size: 20px; color: var(--muted); margin: 0 auto 28px; max-width: 30em; }
+
+      .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+      .btn {
+        display: inline-block; padding: 10px 20px; border-radius: 8px; text-decoration: none;
+        font-weight: 600; font-size: 15px; border: 1px solid var(--border); color: var(--fg);
+        background: var(--bg-soft);
+      }
+
+      .btn--primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+
+      .btn:hover { filter: brightness(1.08); }
+
+      .note { color: var(--muted); font-size: 14px; margin-top: 14px; }
+
+      figure { margin: 48px 0 0; }
+
+      figure img {
+        width: 100%; height: auto; display: block;
+        border: 1px solid var(--border); border-radius: 10px;
+      }
+
+      figcaption { color: var(--muted); font-size: 14px; text-align: center; margin-top: 12px; }
+
+      section { padding: 56px 0; border-top: 1px solid var(--border); }
+
+      h2 { font-size: 24px; margin: 0 0 16px; letter-spacing: -0.01em; }
+
+      p { margin: 0 0 16px; }
+
+      .lede { font-size: 17px; }
+
+      .grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 8px; }
+
+      .grid h3 { font-size: 16px; margin: 0 0 6px; }
+
+      .grid p { color: var(--muted); font-size: 15px; margin: 0; }
+
+      table { border-collapse: collapse; width: 100%; font-size: 15px; }
+
+      td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+
+      td:first-child { width: 140px; }
+
+      kbd {
+        font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--bg-soft); border: 1px solid var(--border); border-bottom-width: 2px;
+        border-radius: 5px; padding: 1px 6px;
+      }
+
+      code {
+        font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--bg-soft); border-radius: 5px; padding: 1px 5px;
+      }
+
+      pre {
+        background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px;
+        padding: 14px 16px; overflow-x: auto; font-size: 14px; line-height: 1.5;
+      }
+
+      pre code { background: none; padding: 0; }
+
+      .add { color: var(--add); }
+      .del { color: var(--del); }
+
+      footer {
+        border-top: 1px solid var(--border); padding: 32px 0 56px;
+        color: var(--muted); font-size: 14px; text-align: center;
+      }
+
+      footer a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <img class="mark" src="icon.png" alt="" width="72" height="72" />
+        <h1>Read a pull request like an editor</h1>
+        <p class="tagline">
+          Sofa adds a tab to GitHub that shows each changed file in full, with the
+          diff spliced into it. No more judging a change through three lines of context.
+        </p>
+        <div class="actions">
+          <!-- Swap this for the Chrome Web Store link once the listing is live. -->
+          <a class="btn btn--primary" href="https://github.com/rousan/sofa">Get it on GitHub</a>
+          <a class="btn" href="https://github.com/rousan/sofa#install">Install instructions</a>
+        </div>
+        <p class="note">Chrome Web Store listing is in review. Free and open source.</p>
+      </header>
+
+      <figure>
+        <img src="screenshot.png" alt="The Sofa tab open on a GitHub pull request, showing a file tree on the left and a whole file with an added line highlighted on the right." />
+        <figcaption>The Sofa tab, sitting next to Files changed.</figcaption>
+      </figure>
+
+      <section>
+        <h2>The problem</h2>
+        <p class="lede">
+          GitHub shows a diff as a handful of hunks with three lines of context
+          around each one. When the change sits inside a long function, that is not
+          enough to judge it: you cannot see what the variable was, what the branch
+          above does, or whether the early return you are reading is the one that
+          matters. Expanding line by line is slow, and sometimes it simply does not load.
+        </p>
+        <p>
+          Sofa fetches the whole file at the pull request's head commit and renders
+          every line of it, with added lines marked <span class="add">green</span>,
+          removed lines <span class="del">red</span> and interleaved where they used
+          to be, and both line-number gutters correct from the first line to the last.
+        </p>
+      </section>
+
+      <section>
+        <h2>What you get</h2>
+        <div class="grid">
+          <div>
+            <h3>Whole files</h3>
+            <p>Every line of the file, with the diff in context. Toggle back to changes-only when you do not need it.</p>
+          </div>
+          <div>
+            <h3>A real file tree</h3>
+            <p>Collapsible directories, status icons, per-file counts, a filter, a draggable width, and viewed state that sticks.</p>
+          </div>
+          <div>
+            <h3>Native to the page</h3>
+            <p>A tab beside Files changed, using GitHub's own colours, fonts and icons. Your theme is its theme.</p>
+          </div>
+          <div>
+            <h3>Keyboard first</h3>
+            <p>Jump between changes and files without reaching for the mouse.</p>
+          </div>
+          <div>
+            <h3>Instant</h3>
+            <p>Every file is fetched in the background as soon as the diff loads, so clicking one opens it immediately.</p>
+          </div>
+          <div>
+            <h3>Enterprise too</h3>
+            <p>Add your company's GitHub host from the toolbar popup. Nothing about it is baked into the extension.</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Keyboard</h2>
+        <table>
+          <tr><td><kbd>n</kbd> / <kbd>p</kbd></td><td>Next or previous change in the file</td></tr>
+          <tr><td><kbd>]</kbd> / <kbd>[</kbd></td><td>Next or previous file</td></tr>
+          <tr><td><kbd>w</kbd></td><td>Whole file or changes only</td></tr>
+          <tr><td><kbd>v</kbd></td><td>Mark the file viewed</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Filter files</td></tr>
+          <tr><td><kbd>esc</kbd></td><td>Back to GitHub</td></tr>
+        </table>
+      </section>
+
+      <section>
+        <h2>Install</h2>
+        <p>
+          From source, until the store listing is approved:
+        </p>
+        <pre><code>git clone https://github.com/rousan/sofa.git
+cd sofa
+npm install
+npm run build</code></pre>
+        <p>
+          Then open <code>chrome://extensions</code>, turn on Developer mode, choose
+          <strong>Load unpacked</strong>, and pick the <code>dist</code> folder.
+          Open any pull request and click the Sofa tab.
+        </p>
+      </section>
+
+      <section>
+        <h2>Privacy</h2>
+        <p>
+          Sofa reads the pages you already have open, using the session you are
+          already signed in with. It collects nothing, sends nothing anywhere, and
+          has no server of its own. The only thing it stores is which files you have
+          marked viewed, in your browser, per pull request.
+        </p>
+      </section>
+    </div>
+
+    <footer>
+      <p>
+        <a href="https://github.com/rousan/sofa">Source on GitHub</a>
+        &middot; built by <a href="https://github.com/rousan">rousan</a>
+      </p>
+    </footer>
+  </body>
+</html>
