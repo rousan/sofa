@@ -29,6 +29,17 @@ manifest there). Open any pull request and click the **Sofa** tab.
 `npm run watch` rebuilds on change; hit the reload icon on the extension card and
 refresh the pull request to pick a rebuild up.
 
+### Adding a GitHub Enterprise host
+
+Sofa ships with permission for `github.com` only. To review pull requests on a
+company forge, click the Sofa toolbar icon, type the hostname, and accept
+Chrome's permission prompt. The service worker registers the content script for
+that host on the spot and re-registers it on every browser start, so it is a
+one-off. Remove a host from the same popup to revoke it.
+
+Nothing about your forge is stored in the repository or the build: the grant
+lives in your own browser profile.
+
 ### If your Chrome is managed
 
 A managed Chrome may refuse with *"Extension installation is blocked by policy"*.
@@ -94,39 +105,47 @@ GitHub Enterprise work unchanged.
    page, or the last commit in `<pull-request>.patch`.
 3. `/raw/<sha>/<path>` gives each file's full text, fetched lazily per file.
 4. `src/model.ts` walks the head file and splices the hunks in, verifying the
-   hunks' context lines against the file so a wrong sha degrades to a plain hunk
-   view instead of rendering a misleading file.
+   hunks' context lines against the file. If they do not match, the sha was
+   wrong, so Sofa confirms the head commit against the pull request's own
+   `.patch` and retries once before falling back to a plain hunk view.
 
 ## Supported hosts
 
-The committed `manifest.json` lists only `github.com`. To run on a GitHub
-Enterprise host, put its match pattern in an untracked `hosts.local.json`:
+`manifest.json` grants `github.com` at install time and declares `*://*/*` as an
+*optional* host permission, which grants nothing by itself. Everything else is
+requested at runtime from the popup, so a private hostname never appears in the
+repository or in a published listing.
 
-```json
-["*://ghe.example.com/*"]
-```
+## Packaging
 
-`npm run build` merges those into `dist/manifest.json`, so a private hostname
-never lands in the repository. Rebuild and reload the extension after changing it.
+`npm run package` writes `sofa-<version>.zip` from `dist/`, which is the shape
+the Chrome Web Store wants (manifest at the zip root, no source maps, no test
+harness). Before a first submission you still need icons: a 128x128 for the
+listing and 16/32/48/128 referenced from an `icons` block in `manifest.json`,
+plus at least one 1280x800 screenshot.
 
 ## Layout
 
 ```
-manifest.json          extension manifest (points at dist/)
-build.mjs              esbuild driver: bundles both entries, copies the css
+manifest.json          extension manifest (paths are rewritten into dist/)
+build.mjs              esbuild driver: bundles every entry, copies the assets
 src/
   content.ts           entry: injects the Sofa tab, tracks SPA navigation
+  background.ts        service worker: registers content scripts for granted hosts
+  popup.ts/.html       toolbar popup: add or remove Enterprise hosts
+  permissions.ts       host pattern handling shared by the popup and the worker
   github.ts            all forge fetches and head-sha resolution
   diff.ts              unified diff parser
   model.ts             splices hunks into the full file
   highlight.ts         small dependency-free syntax highlighter
   util.ts              helpers plus viewed-state persistence
-  ui/panel.ts          the overlay: toolbar, sidebar, state
+  ui/panel.ts          the panel: toolbar, sidebar, state, mounting
   ui/tree.ts           the file tree
   ui/viewer.ts         the file renderer
-  sofa.css             all styling, themed for light and dark
+  sofa.css             all styling, driven by GitHub's Primer variables
 test/
   model.test.ts        parser and merge tests (node --test)
+  permissions.test.ts  host pattern tests
   harness.html         renders the panel from a fixture, no network needed
   fixture.ts           the fixture pull request
 ```

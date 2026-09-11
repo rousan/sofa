@@ -157,3 +157,32 @@ test('anchors point at the first row of each change run', () => {
 
   assert.deepEqual(findChangeAnchors(rows), [1, 4]);
 });
+
+test('flags a head-text mismatch so the caller can retry with a better sha', () => {
+  const file = parseUnifiedDiff(diffFor([
+    '@@ -1,2 +1,2 @@',
+    ' expected context',
+    '+added line',
+    '-removed line',
+  ]))[0]!;
+
+  const wrongRevision = buildFileModel(file, 'a file\nfrom some\nother commit\n');
+  assert.equal(wrongRevision.mismatch, true);
+
+  const rightRevision = buildFileModel(file, 'expected context\nadded line\n');
+  assert.equal(rightRevision.mismatch, false);
+  assert.equal(rightRevision.mode, 'full');
+});
+
+test('a file that simply could not be fetched is not reported as a mismatch', () => {
+  const file = parseUnifiedDiff(diffFor([
+    '@@ -1,1 +1,2 @@',
+    ' context',
+    '+added',
+  ]))[0]!;
+
+  const model = buildFileModel(file, null);
+
+  assert.equal(model.mismatch, false);
+  assert.match(model.note, /Could not load/);
+});

@@ -104,35 +104,54 @@ function findShaInBlobLinks(ctx: PrContext): string | null {
 }
 
 /**
- * Find the head commit sha of the pull request.
+ * Find the head commit sha of the pull request, cheaply.
  *
- * Sources are tried in cost order: the JSON the page already embeds, then any
- * blob link on the page, then the `.patch` document whose last commit is the
- * head commit. The two DOM sources are free, which matters because nothing can
- * be rendered as a whole file until the sha is known.
+ * Both sources are free, which matters because nothing can be rendered as a
+ * whole file until a sha is known. Neither is authoritative, though: a page's
+ * embedded payloads vary by forge version, and a blob link can point at some
+ * other commit entirely (a reviewer linking a file from a comment, say). A
+ * wrong sha shows up as a file whose text does not match the diff, at which
+ * point the panel asks `confirmHeadSha` for the real answer.
  *
  * @param ctx - The pull request being reviewed.
- * @returns A 40-character sha, or null when none could be determined.
+ * @returns A 40-character sha, or null when neither source had one.
  */
 export async function resolveHeadSha(ctx: PrContext): Promise<string | null> {
-  const embedded = findShaInEmbeddedData();
-  if (embedded) return embedded;
+  return findShaInEmbeddedData() ?? findShaInBlobLinks(ctx) ?? confirmHeadSha(ctx);
+}
 
-  const linked = findShaInBlobLinks(ctx);
-  if (linked) return linked;
+/**
+ * Cache of the authoritative head sha, so the patch is fetched at most once.
+ */
+const confirmedShas = new Map<string, string | null>();
 
+/**
+ * Read the head commit sha from the pull request's own patch.
+ *
+ * This is the authoritative source: `.patch` lists the pull request's commits
+ * oldest first, so the last one is its head. It costs a request roughly the
+ * size of the diff, which is why it is only used to confirm a guess that has
+ * already proved wrong.
+ *
+ * @param ctx - The pull request being reviewed.
+ * @returns A 40-character sha, or null when the patch could not be read.
+ */
+export async function confirmHeadSha(ctx: PrContext): Promise<string | null> {
+  const key = `${ctx.origin}/${ctx.owner}/${ctx.repo}#${ctx.number}`;
+  const cached = confirmedShas.get(key);
+  if (cached !== undefined) return cached;
+
+  let sha: string | null = null;
   try {
     const patch = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/pull/${ctx.number}.patch`);
     const matches = patch.match(/^From ([0-9a-f]{40}) /gm);
-    if (matches?.length) {
-      // Commits appear oldest first, so the last one is the pull request head.
-      const last = matches[matches.length - 1] ?? '';
-      return /([0-9a-f]{40})/.exec(last)?.[1] ?? null;
-    }
+    const last = matches?.[matches.length - 1] ?? '';
+    sha = /([0-9a-f]{40})/.exec(last)?.[1] ?? null;
   } catch {
-    // Fall through: the viewer degrades to a hunks-only rendering.
+    // Leave it null: the viewer degrades to a hunks-only rendering.
   }
-  return null;
+  confirmedShas.set(key, sha);
+  return sha;
 }
 
 /**

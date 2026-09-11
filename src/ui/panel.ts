@@ -39,11 +39,17 @@ export interface DiffSource {
    */
   fetchFiles: (ctx: PrContext) => Promise<DiffFile[]>;
   /**
-   * Resolve the pull request's head commit sha.
+   * Resolve the pull request's head commit sha, cheaply and possibly wrongly.
    *
    * @param ctx - The pull request being reviewed.
    */
   resolveHeadSha: (ctx: PrContext) => Promise<string | null>;
+  /**
+   * Resolve the head commit sha authoritatively, at the cost of a request.
+   *
+   * @param ctx - The pull request being reviewed.
+   */
+  confirmHeadSha: (ctx: PrContext) => Promise<string | null>;
   /**
    * Fetch one file's full text at a commit.
    *
@@ -176,6 +182,9 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   let viewerHandle: ViewerHandle | null = null;
   let loadToken = 0;
   let loaded = false;
+  // Whether the head sha has been checked against its authoritative source,
+  // which only happens once, and only if a file turns out not to match.
+  let headShaConfirmed = false;
   const viewed = loadViewed(ctx);
   const collapsed = new Set<string>();
   const models = new Map<string, FileModel>();
@@ -314,10 +323,25 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     if (!models.has(path)) {
       setViewerMessage(`Loading ${path}`);
       const needsHead = !file.binary && file.status !== 'deleted';
-      const headText = needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null;
+      let model = buildFileModel(file, needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null);
+
+      // The file did not match the diff, so the sha it was fetched at was the
+      // wrong one. Confirm the head sha against the pull request's own patch
+      // and try again before settling for a hunks-only rendering.
+      if (model.mismatch && !headShaConfirmed) {
+        headShaConfirmed = true;
+        const confirmed = await source.confirmHeadSha(ctx);
+        if (confirmed && confirmed !== headSha) {
+          headSha = confirmed;
+          // Anything cached was built against the wrong revision.
+          models.clear();
+          model = buildFileModel(file, await source.fetchFileAtSha(ctx, headSha, file.path));
+        }
+      }
+
       // A newer selection landed while this file was in flight.
       if (token !== loadToken) return;
-      models.set(path, buildFileModel(file, headText));
+      models.set(path, model);
     }
 
     const model = models.get(path);

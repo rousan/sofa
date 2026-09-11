@@ -19,7 +19,8 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": [
-      "node"
+      "node",
+      "chrome"
     ],
     "allowImportingTsExtensions": true
   },

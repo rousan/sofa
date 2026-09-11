@@ -99,6 +99,11 @@ export interface FileModel {
   complete: boolean;
   /** A message explaining an incomplete rendering, or an empty string. */
   note: string;
+  /**
+   * True when the fetched file did not match the diff, which means the head sha
+   * used to fetch it was wrong rather than that anything is wrong with the diff.
+   */
+  mismatch: boolean;
 }
 
 /**

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sofa",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agentic PR reviews at your comfort. Adds a Sofa tab to GitHub pull requests: file tree on the left, whole-file diffs on the right.",
   "host_permissions": [
     "*://github.com/*",
@@ -21,5 +21,18 @@
       "run_at": "document_end",
       "all_frames": false
     }
-  ]
+  ],
+  "permissions": [
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "action": {
+    "default_popup": "dist/popup.html",
+    "default_title": "Sofa"
+  }
 }
