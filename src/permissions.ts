@@ -8,10 +8,18 @@
  */
 
 /**
- * Origins the manifest grants at install time, which the user cannot revoke and
- * which must never be treated as one of their own additions.
+ * Origins the manifest grants at install time.
+ *
+ * Read from the manifest rather than repeated here, so adding a host to the
+ * manifest can never leave it showing in the popup as though the user had added
+ * it, with a Remove button that would not remove anything.
+ *
+ * @returns The built-in match patterns, empty outside an extension context.
  */
-export const BUILT_IN_ORIGINS = ['*://github.com/*', '*://raw.githubusercontent.com/*'];
+export function builtInOrigins(): string[] {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.getManifest) return [];
+  return chrome.runtime.getManifest().host_permissions ?? [];
+}
 
 /**
  * Prefix for the content script registrations Sofa creates at runtime, so its
@@ -59,6 +67,7 @@ export function hostOf(pattern: string): string {
  * @returns Granted match patterns, excluding the ones the manifest ships with.
  */
 export async function grantedHosts(): Promise<string[]> {
+  const builtIn = builtInOrigins();
   const all = await chrome.permissions.getAll();
-  return (all.origins ?? []).filter((origin) => !BUILT_IN_ORIGINS.includes(origin)).sort();
+  return (all.origins ?? []).filter((origin) => !builtIn.includes(origin)).sort();
 }
