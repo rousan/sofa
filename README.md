@@ -1,6 +1,6 @@
 # sofa
 
-Agentic PR reviews at your comfort.
+Agentic PR reviews at your comfort. [sofa.rousanali.com](https://sofa.rousanali.com)
 
 Sofa is a Chrome extension that adds a **Sofa** tab next to *Files changed* on any
 GitHub pull request and reviews it the way an editor would: file tree on the left,
