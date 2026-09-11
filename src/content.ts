@@ -118,6 +118,20 @@ function setTabCount(count: number): void {
 }
 
 /**
+ * Match the "Files changed" tab's href.
+ *
+ * Two spellings are in the wild: the long-standing `/files`, and `/changes` in
+ * the newer review experience GitHub is rolling out. A page only ever carries
+ * one of them, and Enterprise is still on the first.
+ *
+ * @param ctx - The pull request being viewed.
+ * @returns A pattern matching that tab's href, with or without a query.
+ */
+function filesTabPattern(ctx: PrContext): RegExp {
+  return new RegExp(`/${ctx.owner}/${ctx.repo}/pull/${ctx.number}/(?:files|changes)(?:[?#]|$)`);
+}
+
+/**
  * Find the pull request's "Files changed" tab.
  *
  * Matching on the href rather than a class keeps this working across the
@@ -127,10 +141,9 @@ function setTabCount(count: number): void {
  * @returns The anchor, or null when the tab nav is not on the page.
  */
 function findFilesTab(ctx: PrContext): HTMLAnchorElement | null {
-  const suffix = `/${ctx.owner}/${ctx.repo}/pull/${ctx.number}/files`;
+  const pattern = filesTabPattern(ctx);
   for (const anchor of document.querySelectorAll<HTMLAnchorElement>('a[href]')) {
-    const href = anchor.getAttribute('href') ?? '';
-    if (!href.endsWith(suffix) && !href.includes(`${suffix}?`)) continue;
+    if (!pattern.test(anchor.getAttribute('href') ?? '')) continue;
     // A tab lives inside a nav or a tablist; a link in the page body does not.
     if (anchor.closest('nav, [role="tablist"], .tabnav-tabs')) return anchor;
   }
