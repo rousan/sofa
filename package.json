@@ -11,7 +11,8 @@
     "test": "node --test test/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build",
     "fake": "node build.mjs && node scripts/make-fake-forge.mjs",
-    "package": "node build.mjs && cd dist && zip -qr ../sofa-$npm_package_version.zip . -x '*.map' 'harness.js' && echo 'wrote sofa-'$npm_package_version'.zip'"
+    "package": "node build.mjs && cd dist && zip -qr ../sofa-$npm_package_version.zip . -x '*.map' 'harness.js' && echo 'wrote sofa-'$npm_package_version'.zip'",
+    "icons": "node scripts/make-icons.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.2.9",

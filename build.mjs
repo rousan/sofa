@@ -42,6 +42,10 @@ const entries = [
 const ASSETS = [
   ['src/sofa.css', 'dist/sofa.css'],
   ['src/popup.html', 'dist/popup.html'],
+  ['src/icons/icon-16.png', 'dist/icons/icon-16.png'],
+  ['src/icons/icon-32.png', 'dist/icons/icon-32.png'],
+  ['src/icons/icon-48.png', 'dist/icons/icon-48.png'],
+  ['src/icons/icon-128.png', 'dist/icons/icon-128.png'],
 ];
 
 /**
@@ -53,7 +57,7 @@ const ASSETS = [
  * @returns {Promise<void>} Resolves once every file is in place.
  */
 async function copyAssets() {
-  await mkdir('dist', { recursive: true });
+  await mkdir('dist/icons', { recursive: true });
   for (const [from, to] of ASSETS) {
     await copyFile(from, to);
   }
@@ -70,6 +74,9 @@ async function copyAssets() {
   if (manifest.action?.default_popup) {
     manifest.action.default_popup = strip(manifest.action.default_popup);
   }
+  const stripIcons = (icons) => Object.fromEntries(Object.entries(icons ?? {}).map(([size, file]) => [size, strip(file)]));
+  if (manifest.icons) manifest.icons = stripIcons(manifest.icons);
+  if (manifest.action?.default_icon) manifest.action.default_icon = stripIcons(manifest.action.default_icon);
   await writeFile('dist/manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
