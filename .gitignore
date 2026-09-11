@@ -3,3 +3,4 @@ dist/
 *.log
 test/fake/
 sofa-*.zip
+.DS_Store
