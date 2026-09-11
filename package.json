@@ -4,6 +4,7 @@
   "description": "Agentic PR reviews at your comfort.",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@8.10.5",
   "scripts": {
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
