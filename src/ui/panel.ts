@@ -134,57 +134,114 @@ function describeLoadFailure(err: unknown): string {
 }
 
 /**
- * Find the element after which GitHub renders the pull request tab's content.
+ * Where the panel goes, and what it stands in for.
+ */
+interface MountPlan {
+  /** Page regions to hide while the panel is open. */
+  hide: HTMLElement[];
+  /** The element the panel is inserted into. */
+  parent: Element;
+  /** The node the panel is inserted before, or null to append. */
+  before: Node | null;
+}
+
+/**
+ * The containers GitHub renders a pull request tab's content into.
  *
- * The tab bar and the content are siblings, but how deeply the bar is wrapped
- * differs between github.com and Enterprise releases, so this climbs from the
- * bar until it reaches a node that actually has content after it.
+ * Both generations are listed: the older buckets, still used by Enterprise, and
+ * the page-layout regions of the current github.com, whose main column and
+ * sidebar are separate regions that must both give way.
+ */
+const CONTENT_REGION_SELECTORS = [
+  '#files_bucket',
+  '#discussion_bucket',
+  '.pull-request-tab-content',
+  '[class*="PageLayout-Content"]',
+  '[class*="PageLayout-Pane"]',
+];
+
+/**
+ * Order elements the way they appear in the document.
+ *
+ * @param elements - Elements to sort, in any order.
+ * @returns The same elements, first in the document first.
+ */
+function inDocumentOrder(elements: HTMLElement[]): HTMLElement[] {
+  return [...elements].sort((a, b) =>
+    (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 ? -1 : 1);
+}
+
+/**
+ * Work out where to put the panel and what it stands in for.
+ *
+ * Naming the content regions directly is what keeps this honest. Walking up
+ * from the tab bar until a sibling appeared, which is what the fallback below
+ * still does, lands inside the page header on current github.com: the panel
+ * mounts there and the conversation goes on rendering underneath it.
  *
  * @param anchor - Any element inside the pull request tab bar.
- * @returns The marker element, or null when the layout could not be read.
+ * @returns The plan, or null when the layout could not be read.
  */
-function findContentMarker(anchor: Element | null | undefined): Element | null {
+function findMountPlan(anchor: Element | null | undefined): MountPlan | null {
   if (!anchor) return null;
+
+  const matches = CONTENT_REGION_SELECTORS
+    .flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)])
+    // A region containing the tab bar is the page's frame, not the tab's content.
+    .filter((element) => !element.contains(anchor));
+  const outermost = inDocumentOrder(
+    matches.filter((element) => !matches.some((other) => other !== element && other.contains(element))),
+  );
+
+  const first = outermost[0];
+  if (first?.parentElement) {
+    return { hide: outermost, parent: first.parentElement, before: first };
+  }
+
   let node: Element = anchor.closest('nav, [role="tablist"], .tabnav-tabs') ?? anchor;
   while (!node.nextElementSibling) {
     const parent: Element | null = node.parentElement;
     // Stop before escaping the page's content region; body-level siblings are
     // scripts and dialogs, not the tab's content.
-    if (!parent || parent === document.body || parent.tagName === 'BODY') return null;
+    if (!parent || parent === document.body) return null;
     node = parent;
   }
-  return node;
+  const parent = node.parentElement;
+  if (!parent) return null;
+  const hide: HTMLElement[] = [];
+  let sibling: Element | null = node.nextElementSibling;
+  while (sibling) {
+    if (sibling instanceof HTMLElement) hide.push(sibling);
+    sibling = sibling.nextElementSibling;
+  }
+  return { hide, parent, before: node.nextSibling };
 }
 
 /**
- * Hide GitHub's own tab content and put the panel in its place.
+ * Hide the page's own content and put the panel in its place.
  *
- * Nothing is removed: each hidden sibling keeps its previous inline `display`
+ * Nothing is removed: each hidden element keeps its previous inline `display`
  * so `restoreSiblings` can put the page back exactly as it was.
  *
  * @param element - The panel's root element.
- * @param marker - The element returned by `findContentMarker`.
- * @returns The siblings that were hidden, with the styles to restore.
+ * @param plan - Where to mount, from `findMountPlan`.
+ * @returns The elements that were hidden, with the styles to restore.
  */
-function takeOverContent(element: HTMLElement, marker: Element): { node: HTMLElement; display: string }[] {
+function applyMountPlan(element: HTMLElement, plan: MountPlan): { node: HTMLElement; display: string }[] {
   const hidden: { node: HTMLElement; display: string }[] = [];
-  let sibling = marker.nextElementSibling;
-  while (sibling) {
-    const next = sibling.nextElementSibling;
-    if (sibling !== element && sibling instanceof HTMLElement) {
-      hidden.push({ node: sibling, display: sibling.style.display });
-      sibling.style.display = 'none';
-    }
-    sibling = next;
+  for (const node of plan.hide) {
+    if (node === element || node.contains(element)) continue;
+    hidden.push({ node, display: node.style.display });
+    node.style.display = 'none';
   }
-  marker.parentElement?.insertBefore(element, marker.nextSibling);
+  plan.parent.insertBefore(element, plan.before);
   return hidden;
 }
 
 /**
- * Give the page back the content that `takeOverContent` hid.
+ * Give the page back the content that `applyMountPlan` hid.
  *
- * @param hidden - The record returned by `takeOverContent`.
+ * @param hidden - The record returned by `applyMountPlan`.
  */
 function restoreSiblings(hidden: { node: HTMLElement; display: string }[]): void {
   for (const entry of hidden) {
@@ -563,11 +620,15 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
    */
   function remountIfNeeded(): void {
     if (!panel.isOpen() || element.classList.contains('sofa-root--overlay')) return;
-    const marker = findContentMarker(findAnchor());
-    if (!marker) return;
-    const displaced = hiddenSiblings.some((entry) => !entry.node.isConnected);
-    if (!element.isConnected || displaced || element.previousElementSibling !== marker) {
-      hiddenSiblings = takeOverContent(element, marker);
+    const plan = findMountPlan(findAnchor());
+    if (!plan) return;
+    // A re-render replaces the regions wholesale, so a hidden one that is no
+    // longer in the document means the page has put its content back.
+    const displaced = hiddenSiblings.some((entry) => !entry.node.isConnected)
+      || plan.hide.some((node) => node.style.display !== 'none');
+    if (!element.isConnected || displaced) {
+      restoreSiblings(hiddenSiblings);
+      hiddenSiblings = applyMountPlan(element, plan);
     }
   }
 
@@ -588,17 +649,15 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   const panel: Panel = {
     ctx,
     open(anchor) {
-      const marker = findContentMarker(anchor ?? findAnchor());
-      if (marker) {
+      const plan = findMountPlan(anchor ?? findAnchor());
+      if (plan) {
         // Inline: stand in for GitHub's own tab content, leaving its tab bar,
         // header and navigation untouched above.
         element.classList.add('sofa-root--inline');
         element.classList.remove('sofa-root--overlay');
         document.documentElement.classList.remove('sofa-locked');
-        if (element.previousElementSibling !== marker) {
-          restoreSiblings(hiddenSiblings);
-          hiddenSiblings = takeOverContent(element, marker);
-        }
+        restoreSiblings(hiddenSiblings);
+        hiddenSiblings = applyMountPlan(element, plan);
         watchHost();
       } else {
         // Fallback: an unreadable layout still gets a usable full-screen panel.
