@@ -26,6 +26,14 @@ const MAX_SIDEBAR = 720;
 const WIDTH_KEY = 'sofa:sidebarWidth';
 
 /**
+ * How many files to fetch at once while warming the cache.
+ *
+ * Enough to hide the latency of a click, few enough to leave the browser's
+ * connection budget for whatever the user actually asked for.
+ */
+const PREFETCH_CONCURRENCY = 4;
+
+/**
  * The forge calls the panel depends on.
  *
  * Declaring them as an interface lets `test/harness.html` render the panel from
@@ -271,6 +279,9 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   // Whether the head sha has been checked against its authoritative source,
   // which only happens once, and only if a file turns out not to match.
   let headShaConfirmed = false;
+  // Bumped whenever the diff is reloaded, so an in-flight prefetch for the old
+  // revision stops instead of filling the cache with stale text.
+  let prefetchToken = 0;
   const viewed = loadViewed(ctx);
   const collapsed = new Set<string>();
   const models = new Map<string, FileModel>();
@@ -360,6 +371,33 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   }
 
   /**
+   * Move the selected highlight without rebuilding the tree.
+   *
+   * Rebuilding it on every click throws away and recreates a row per changed
+   * file, which is wasted work on a large pull request and makes the click feel
+   * heavier than it is.
+   *
+   * @param path - The path that is now open.
+   */
+  function updateSelection(path: string): void {
+    for (const row of treeMount.querySelectorAll<HTMLElement>('[data-sofa-path]')) {
+      row.classList.toggle('is-selected', row.dataset['sofaPath'] === path);
+    }
+  }
+
+  /**
+   * Reflect one file's viewed state in the tree and the counter.
+   *
+   * @param path - The file whose state changed.
+   */
+  function updateViewed(path: string): void {
+    const row = treeMount.querySelector<HTMLElement>(`[data-sofa-path="${CSS.escape(path)}"]`);
+    row?.classList.toggle('is-viewed', viewed.has(path));
+    const count = files.filter((file) => viewed.has(file.path)).length;
+    sidebarMeta.textContent = `${count} / ${files.length} viewed`;
+  }
+
+  /**
    * Redraw the sidebar tree and the two meta lines from current state.
    */
   function renderSidebar(): void {
@@ -403,31 +441,39 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     const file = files.find((entry) => entry.path === path);
     if (!file) return;
     selectedPath = path;
-    renderSidebar();
+    updateSelection(path);
 
     const token = ++loadToken;
     if (!models.has(path)) {
       setViewerMessage(`Loading ${path}`);
-      const needsHead = !file.binary && file.status !== 'deleted';
-      let model = buildFileModel(file, needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null);
+      try {
+        const needsHead = !file.binary && file.status !== 'deleted';
+        let model = buildFileModel(file, needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null);
 
-      // The file did not match the diff, so the sha it was fetched at was the
-      // wrong one. Confirm the head sha against the pull request's own patch
-      // and try again before settling for a hunks-only rendering.
-      if (model.mismatch && !headShaConfirmed) {
-        headShaConfirmed = true;
-        const confirmed = await source.confirmHeadSha(ctx);
-        if (confirmed && confirmed !== headSha) {
-          headSha = confirmed;
-          // Anything cached was built against the wrong revision.
-          models.clear();
-          model = buildFileModel(file, await source.fetchFileAtSha(ctx, headSha, file.path));
+        // The file did not match the diff, so the sha it was fetched at was the
+        // wrong one. Confirm the head sha against the pull request's own patch
+        // and try again before settling for a hunks-only rendering.
+        if (model.mismatch && !headShaConfirmed) {
+          headShaConfirmed = true;
+          const confirmed = await source.confirmHeadSha(ctx);
+          if (confirmed && confirmed !== headSha) {
+            headSha = confirmed;
+            // Anything cached was built against the wrong revision.
+            models.clear();
+            model = buildFileModel(file, await source.fetchFileAtSha(ctx, headSha, file.path));
+          }
         }
-      }
 
-      // A newer selection landed while this file was in flight.
-      if (token !== loadToken) return;
-      models.set(path, model);
+        // A newer selection landed while this file was in flight.
+        if (token !== loadToken) return;
+        models.set(path, model);
+      } catch (err) {
+        // Without this the viewer would sit on "Loading" for ever, with the
+        // reason only visible in the console.
+        if (token !== loadToken) return;
+        setViewerMessage(`Could not open ${path}: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
     }
 
     const model = models.get(path);
@@ -443,28 +489,42 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
         if (isViewed) viewed.add(target);
         else viewed.delete(target);
         saveViewed(ctx, viewed);
-        renderSidebar();
+        updateViewed(target);
       },
       onModeChange: (nextMode) => {
         mode = nextMode;
         void selectFile(path);
       },
     });
-    prefetchNeighbour(path);
   }
 
   /**
-   * Warm the cache for the file after the current one.
+   * Fetch every file's text in the background, a few at a time.
    *
-   * @param path - The path currently displayed.
+   * Clicking a file should feel instant, and it only does if the text is
+   * already there: the fetch is the whole of the delay. Requests are capped so
+   * a large pull request does not open dozens of connections at once, and the
+   * fetch layer collapses a click onto an in-flight prefetch rather than
+   * starting a second request for the same file.
    */
-  function prefetchNeighbour(path: string): void {
-    const order = files.map((file) => file.path);
-    const next = order[order.indexOf(path) + 1];
-    if (!next) return;
-    const file = files.find((entry) => entry.path === next);
-    if (!file || file.binary || file.status === 'deleted' || models.has(next)) return;
-    void source.fetchFileAtSha(ctx, headSha, next);
+  async function prefetchAll(): Promise<void> {
+    const queue = files
+      .filter((file) => !file.binary && file.status !== 'deleted')
+      .map((file) => file.path);
+    const token = prefetchToken;
+
+    /**
+     * Take paths off the shared queue until it runs dry.
+     */
+    async function worker(): Promise<void> {
+      for (let next = queue.shift(); next; next = queue.shift()) {
+        // A reload or a different pull request happened; stop wasting requests.
+        if (token !== prefetchToken) return;
+        await source.fetchFileAtSha(ctx, headSha, next);
+      }
+    }
+
+    await Promise.all(Array.from({ length: PREFETCH_CONCURRENCY }, () => worker()));
   }
 
   /**
@@ -504,6 +564,10 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       const first = files[0];
       if (first) await selectFile(first.path);
       else setViewerMessage('This pull request has no file changes.');
+      // Only once something is on screen, so the first file is never queued
+      // behind the rest.
+      prefetchToken++;
+      void prefetchAll();
     } catch (err) {
       loaded = false;
       setBanner(describeLoadFailure(err));

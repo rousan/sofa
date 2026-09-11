@@ -22,6 +22,14 @@ import type { DiffFile, PrContext } from './types.ts';
 const fileCache = new Map<string, string | null>();
 
 /**
+ * Fetches currently in flight, keyed the same way as the cache.
+ *
+ * Prefetching and clicking race for the same file constantly, and without this
+ * the click would start a second request for something already on its way.
+ */
+const inFlight = new Map<string, Promise<string | null>>();
+
+/**
  * Recognise a pull request URL and extract its coordinates.
  *
  * @param location - Location to parse; defaults to the current page's.
@@ -292,15 +300,23 @@ export async function fetchFileAtSha(ctx: PrContext, sha: string | null, path: s
   const key = `${sha}:${path}`;
   const cached = fileCache.get(key);
   if (cached !== undefined) return cached;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
 
-  let text: string | null = null;
-  try {
-    text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/raw/${sha}/${encodePath(path)}`);
-  } catch {
-    text = null;
-  }
-  fileCache.set(key, text);
-  return text;
+  const request = (async () => {
+    let text: string | null = null;
+    try {
+      text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/raw/${sha}/${encodePath(path)}`);
+    } catch {
+      text = null;
+    }
+    fileCache.set(key, text);
+    inFlight.delete(key);
+    return text;
+  })();
+
+  inFlight.set(key, request);
+  return request;
 }
 
 /**
