@@ -188,15 +188,21 @@ function inDocumentOrder(elements: HTMLElement[]): HTMLElement[] {
  * mounts there and the conversation goes on rendering underneath it.
  *
  * @param anchor - Any element inside the pull request tab bar.
+ * @param panel - The panel's own root, which no region may be measured against.
  * @returns The plan, or null when the layout could not be read.
  */
-function findMountPlan(anchor: Element | null | undefined): MountPlan | null {
+function findMountPlan(anchor: Element | null | undefined, panel: HTMLElement): MountPlan | null {
   if (!anchor) return null;
 
   const matches = CONTENT_REGION_SELECTORS
     .flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)])
     // A region containing the tab bar is the page's frame, not the tab's content.
-    .filter((element) => !element.contains(anchor));
+    .filter((element) => !element.contains(anchor))
+    // Once mounted, the panel sits inside one of these regions. Including an
+    // ancestor of the panel would make the plan un-satisfiable: it can never be
+    // hidden without hiding the panel, so it would read as permanently wrong and
+    // the panel would be re-mounted on every mutation, for ever.
+    .filter((element) => element !== panel && !element.contains(panel));
   const outermost = inDocumentOrder(
     matches.filter((element) => !matches.some((other) => other !== element && other.contains(element))),
   );
@@ -228,32 +234,42 @@ function findMountPlan(anchor: Element | null | undefined): MountPlan | null {
 /**
  * Hide the page's own content and put the panel in its place.
  *
+ * Hiding and mounting are deliberately separate. GitHub goes on re-rendering
+ * the region it is no longer showing, so freshly created nodes have to be
+ * hidden again and again, but the panel itself must only move when it is
+ * genuinely in the wrong place: moving it between a mousedown and a mouseup
+ * destroys the click, which is exactly how a tree row stops responding.
+ *
  * Nothing is removed: each hidden element keeps its previous inline `display`
  * so `restoreSiblings` can put the page back exactly as it was.
  *
  * @param element - The panel's root element.
  * @param plan - Where to mount, from `findMountPlan`.
- * @returns The elements that were hidden, with the styles to restore.
+ * @param hidden - Running record of hidden elements, appended to in place.
  */
-function applyMountPlan(element: HTMLElement, plan: MountPlan): { node: HTMLElement; display: string }[] {
-  const hidden: { node: HTMLElement; display: string }[] = [];
+function applyMountPlan(
+  element: HTMLElement,
+  plan: MountPlan,
+  hidden: { node: HTMLElement; display: string }[],
+): void {
   for (const node of plan.hide) {
-    if (node === element || node.contains(element)) continue;
+    if (node === element || node.contains(element) || node.style.display === 'none') continue;
     hidden.push({ node, display: node.style.display });
     node.style.display = 'none';
   }
-  plan.parent.insertBefore(element, plan.before);
-  return hidden;
+  if (!element.isConnected || element.parentElement !== plan.parent) {
+    plan.parent.insertBefore(element, plan.before);
+  }
 }
 
 /**
  * Give the page back the content that `applyMountPlan` hid.
  *
- * @param hidden - The record returned by `applyMountPlan`.
+ * @param hidden - The record built up by `applyMountPlan`.
  */
 function restoreSiblings(hidden: { node: HTMLElement; display: string }[]): void {
   for (const entry of hidden) {
-    entry.node.style.display = entry.display;
+    if (entry.node.isConnected) entry.node.style.display = entry.display;
   }
   hidden.length = 0;
 }
@@ -659,7 +675,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   /**
    * Siblings currently hidden because the panel took their place in the page.
    */
-  let hiddenSiblings: { node: HTMLElement; display: string }[] = [];
+  const hiddenSiblings: { node: HTMLElement; display: string }[] = [];
 
   /**
    * Finds the tab bar to mount against, called again on every re-mount.
@@ -679,20 +695,35 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   let hostObserver: MutationObserver | null = null;
 
   /**
+   * True while the panel is re-mounting itself.
+   *
+   * Moving the panel is itself a mutation, so without this the observer would
+   * react to its own work.
+   */
+  let remounting = false;
+
+  /**
    * Put the panel back if the page threw it away, and hide any content the page
    * re-added behind it.
    */
   function remountIfNeeded(): void {
-    if (!panel.isOpen() || element.classList.contains('sofa-root--overlay')) return;
-    const plan = findMountPlan(findAnchor());
+    if (!panel.isOpen() || element.classList.contains('sofa-root--overlay') || remounting) return;
+    const plan = findMountPlan(findAnchor(), element);
     if (!plan) return;
     // A re-render replaces the regions wholesale, so a hidden one that is no
-    // longer in the document means the page has put its content back.
-    const displaced = hiddenSiblings.some((entry) => !entry.node.isConnected)
-      || plan.hide.some((node) => node.style.display !== 'none');
-    if (!element.isConnected || displaced) {
-      restoreSiblings(hiddenSiblings);
-      hiddenSiblings = applyMountPlan(element, plan);
+    // longer in the document, or a fresh one that is not hidden yet, means the
+    // page has put its own content back.
+    // Only a region that is visible and is not an ancestor of the panel counts
+    // as the page having taken its content back.
+    const uncovered = plan.hide.some((node) => node.style.display !== 'none'
+      && node !== element && !node.contains(element));
+    if (!element.isConnected || element.parentElement !== plan.parent || uncovered) {
+      remounting = true;
+      try {
+        applyMountPlan(element, plan, hiddenSiblings);
+      } finally {
+        remounting = false;
+      }
     }
   }
 
@@ -706,14 +737,14 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
    */
   function watchHost(): void {
     hostObserver?.disconnect();
-    hostObserver = new MutationObserver(debounce(remountIfNeeded, 50));
+    hostObserver = new MutationObserver(debounce(remountIfNeeded, 150));
     hostObserver.observe(document.body, { childList: true, subtree: true });
   }
 
   const panel: Panel = {
     ctx,
     open(anchor) {
-      const plan = findMountPlan(anchor ?? findAnchor());
+      const plan = findMountPlan(anchor ?? findAnchor(), element);
       if (plan) {
         // Inline: stand in for GitHub's own tab content, leaving its tab bar,
         // header and navigation untouched above.
@@ -721,7 +752,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
         element.classList.remove('sofa-root--overlay');
         document.documentElement.classList.remove('sofa-locked');
         restoreSiblings(hiddenSiblings);
-        hiddenSiblings = applyMountPlan(element, plan);
+        applyMountPlan(element, plan, hiddenSiblings);
         watchHost();
       } else {
         // Fallback: an unreadable layout still gets a usable full-screen panel.
