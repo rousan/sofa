@@ -22,6 +22,14 @@ import type { DiffFile, PrContext } from './types.ts';
 const fileCache = new Map<string, string | null>();
 
 /**
+ * Fetches currently in flight, keyed the same way as the cache.
+ *
+ * Prefetching and clicking race for the same file constantly, and without this
+ * the click would start a second request for something already on its way.
+ */
+const inFlight = new Map<string, Promise<string | null>>();
+
+/**
  * Recognise a pull request URL and extract its coordinates.
  *
  * @param location - Location to parse; defaults to the current page's.
@@ -40,20 +48,134 @@ export function parseLocation(location: Location | URL = window.location): PrCon
 }
 
 /**
- * Fetch a URL as text using the browser's forge session.
+ * How long to wait for the page-world bridge before deciding it is not there.
+ */
+const BRIDGE_TIMEOUT_MS = 4000;
+
+/**
+ * Whether the page-world bridge has ever answered.
+ *
+ * Once it has failed to reply, later requests skip it rather than pay the
+ * timeout again. The offline harness, where no bridge is injected, hits this.
+ */
+let bridgeAvailable: boolean | null = null;
+
+/**
+ * The reply shape the page-world bridge posts back.
+ */
+interface BridgeReply {
+  /** Whether the response status was in the success range. */
+  ok: boolean;
+  /** HTTP status, or 0 when the request never completed. */
+  status: number;
+  /** HTTP status text, or a short reason when the request never completed. */
+  statusText: string;
+  /** The body, empty unless `ok`. */
+  text: string;
+}
+
+/**
+ * Fetch a URL through the page-world bridge.
+ *
+ * @param url - Absolute, same-origin URL to fetch.
+ * @returns The bridge's reply, or null when no bridge answered in time.
+ */
+function fetchViaPage(url: string): Promise<BridgeReply | null> {
+  return new Promise((resolve) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      bridgeAvailable = false;
+      resolve(null);
+    }, BRIDGE_TIMEOUT_MS);
+
+    /**
+     * Resolve the promise when the bridge answers this particular request.
+     *
+     * @param event - A message event on the page's window.
+     */
+    function onMessage(event: MessageEvent): void {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data as { kind?: string; id?: string } | undefined;
+      if (!data || data.kind !== 'sofa:fetch-response' || data.id !== id) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      bridgeAvailable = true;
+      resolve(data as unknown as BridgeReply);
+    }
+
+    window.addEventListener('message', onMessage);
+    window.postMessage({ kind: 'sofa:fetch-request', id, url }, window.location.origin);
+  });
+}
+
+/**
+ * Fetch a URL through the extension's service worker.
+ *
+ * @param url - Absolute URL to fetch.
+ * @returns The worker's reply, or null when there is no worker to ask.
+ */
+async function fetchViaWorker(url: string): Promise<BridgeReply | null> {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return null;
+  try {
+    const reply = await chrome.runtime.sendMessage({ kind: 'sofa:fetch', url });
+    return (reply as BridgeReply | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch a URL as text from the content script's own context.
  *
  * @param url - Absolute URL to fetch.
  * @returns The response body.
  * @throws When the response status is not ok.
  */
-export async function fetchText(url: string): Promise<string> {
+async function fetchDirect(url: string): Promise<string> {
   const response = await fetch(url, {
     credentials: 'include',
     headers: { Accept: 'text/plain, */*' },
     redirect: 'follow',
   });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim());
   return response.text();
+}
+
+/**
+ * Fetch a URL as text using the browser's forge session.
+ *
+ * Three routes, because no single one works everywhere:
+ *
+ *  - The service worker. The canonical Manifest V3 route, and the only one with
+ *    a CORS exemption, which github.com needs: its `.diff` redirects to
+ *    patch-diff.githubusercontent.com, and a content script's own fetch of that
+ *    is rejected for a missing allow-origin header.
+ *  - The page-world bridge. Needed where a forge refuses requests attributed to
+ *    the extension: GitHub Enterprise redirects `.diff` to a media path that
+ *    answers 403 to those while serving the identical URL to the page.
+ *  - A direct fetch, which is all the offline harness has.
+ *
+ * @param url - Absolute URL to fetch.
+ * @returns The response body.
+ * @throws When no route could fetch it.
+ */
+export async function fetchText(url: string): Promise<string> {
+  const viaWorker = await fetchViaWorker(url);
+  if (viaWorker?.ok) return viaWorker.text;
+
+  const sameOrigin = new URL(url, window.location.href).origin === window.location.origin;
+  const hasBridge = document.documentElement.hasAttribute('data-sofa-bridge');
+  if (sameOrigin && hasBridge && bridgeAvailable !== false) {
+    const viaPage = await fetchViaPage(url);
+    if (viaPage?.ok) return viaPage.text;
+    if (viaPage && viaWorker) {
+      // Both privileged routes answered and both refused, so the forge means it.
+      throw new Error(`${viaWorker.status || viaPage.status} ${viaWorker.statusText || viaPage.statusText}`.trim());
+    }
+  }
+
+  return fetchDirect(url);
 }
 
 /**
@@ -104,35 +226,54 @@ function findShaInBlobLinks(ctx: PrContext): string | null {
 }
 
 /**
- * Find the head commit sha of the pull request.
+ * Find the head commit sha of the pull request, cheaply.
  *
- * Sources are tried in cost order: the JSON the page already embeds, then any
- * blob link on the page, then the `.patch` document whose last commit is the
- * head commit. The two DOM sources are free, which matters because nothing can
- * be rendered as a whole file until the sha is known.
+ * Both sources are free, which matters because nothing can be rendered as a
+ * whole file until a sha is known. Neither is authoritative, though: a page's
+ * embedded payloads vary by forge version, and a blob link can point at some
+ * other commit entirely (a reviewer linking a file from a comment, say). A
+ * wrong sha shows up as a file whose text does not match the diff, at which
+ * point the panel asks `confirmHeadSha` for the real answer.
  *
  * @param ctx - The pull request being reviewed.
- * @returns A 40-character sha, or null when none could be determined.
+ * @returns A 40-character sha, or null when neither source had one.
  */
 export async function resolveHeadSha(ctx: PrContext): Promise<string | null> {
-  const embedded = findShaInEmbeddedData();
-  if (embedded) return embedded;
+  return findShaInEmbeddedData() ?? findShaInBlobLinks(ctx) ?? confirmHeadSha(ctx);
+}
 
-  const linked = findShaInBlobLinks(ctx);
-  if (linked) return linked;
+/**
+ * Cache of the authoritative head sha, so the patch is fetched at most once.
+ */
+const confirmedShas = new Map<string, string | null>();
 
+/**
+ * Read the head commit sha from the pull request's own patch.
+ *
+ * This is the authoritative source: `.patch` lists the pull request's commits
+ * oldest first, so the last one is its head. It costs a request roughly the
+ * size of the diff, which is why it is only used to confirm a guess that has
+ * already proved wrong.
+ *
+ * @param ctx - The pull request being reviewed.
+ * @returns A 40-character sha, or null when the patch could not be read.
+ */
+export async function confirmHeadSha(ctx: PrContext): Promise<string | null> {
+  const key = `${ctx.origin}/${ctx.owner}/${ctx.repo}#${ctx.number}`;
+  const cached = confirmedShas.get(key);
+  if (cached !== undefined) return cached;
+
+  let sha: string | null = null;
   try {
     const patch = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/pull/${ctx.number}.patch`);
     const matches = patch.match(/^From ([0-9a-f]{40}) /gm);
-    if (matches?.length) {
-      // Commits appear oldest first, so the last one is the pull request head.
-      const last = matches[matches.length - 1] ?? '';
-      return /([0-9a-f]{40})/.exec(last)?.[1] ?? null;
-    }
+    const last = matches?.[matches.length - 1] ?? '';
+    sha = /([0-9a-f]{40})/.exec(last)?.[1] ?? null;
   } catch {
-    // Fall through: the viewer degrades to a hunks-only rendering.
+    // Leave it null: the viewer degrades to a hunks-only rendering.
   }
-  return null;
+  confirmedShas.set(key, sha);
+  return sha;
 }
 
 /**
@@ -159,15 +300,23 @@ export async function fetchFileAtSha(ctx: PrContext, sha: string | null, path: s
   const key = `${sha}:${path}`;
   const cached = fileCache.get(key);
   if (cached !== undefined) return cached;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
 
-  let text: string | null = null;
-  try {
-    text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/raw/${sha}/${encodePath(path)}`);
-  } catch {
-    text = null;
-  }
-  fileCache.set(key, text);
-  return text;
+  const request = (async () => {
+    let text: string | null = null;
+    try {
+      text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/raw/${sha}/${encodePath(path)}`);
+    } catch {
+      text = null;
+    }
+    fileCache.set(key, text);
+    inFlight.delete(key);
+    return text;
+  })();
+
+  inFlight.set(key, request);
+  return request;
 }
 
 /**

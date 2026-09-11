@@ -157,3 +157,73 @@ test('anchors point at the first row of each change run', () => {
 
   assert.deepEqual(findChangeAnchors(rows), [1, 4]);
 });
+
+test('flags a head-text mismatch so the caller can retry with a better sha', () => {
+  const file = parseUnifiedDiff(diffFor([
+    '@@ -1,2 +1,2 @@',
+    ' expected context',
+    '+added line',
+    '-removed line',
+  ]))[0]!;
+
+  const wrongRevision = buildFileModel(file, 'a file\nfrom some\nother commit\n');
+  assert.equal(wrongRevision.mismatch, true);
+
+  const rightRevision = buildFileModel(file, 'expected context\nadded line\n');
+  assert.equal(rightRevision.mismatch, false);
+  assert.equal(rightRevision.mode, 'full');
+});
+
+test('a file that simply could not be fetched is not reported as a mismatch', () => {
+  const file = parseUnifiedDiff(diffFor([
+    '@@ -1,1 +1,2 @@',
+    ' context',
+    '+added',
+  ]))[0]!;
+
+  const model = buildFileModel(file, null);
+
+  assert.equal(model.mismatch, false);
+  assert.match(model.note, /Could not load/);
+});
+
+test('does not absorb the trailing newline as a context line', () => {
+  // A real diff document ends with a newline, so splitting it yields one final
+  // empty string. Absorbing that invents a line the file does not have, which
+  // then fails the match check and drops the file to a hunks-only rendering.
+  const diff = diffFor([
+    '@@ -1,4 +1,4 @@',
+    ' {',
+    '-  "version": "1.0.0",',
+    '+  "version": "1.0.1",',
+    '   "type": "module",',
+    '   "bin": {',
+  ]) + '\n';
+
+  const file = parseUnifiedDiff(diff)[0]!;
+  const lastLine = file.hunks[0]!.lines.at(-1)!;
+
+  assert.equal(lastLine.text, '  "bin": {');
+  assert.equal(file.hunks[0]!.newCount, 4);
+
+  const head = '{\n  "version": "1.0.1",\n  "type": "module",\n  "bin": {\n    "x": "./x.js"\n  }\n}\n';
+  const model = buildFileModel(file, head);
+
+  assert.equal(model.mismatch, false);
+  assert.equal(model.mode, 'full');
+  // The whole file is rendered, including the lines past the hunk.
+  assert.equal(model.rows.at(-1)!.text, '}');
+});
+
+test('stops a hunk at its declared length so later junk is ignored', () => {
+  const file = parseUnifiedDiff(diffFor([
+    '@@ -1,2 +1,2 @@',
+    ' one',
+    '-two',
+    '+TWO',
+    '',
+    'trailing junk that is not part of the hunk',
+  ]))[0]!;
+
+  assert.deepEqual(file.hunks[0]!.lines.map((l) => l.text), ['one', 'two', 'TWO']);
+});

@@ -169,5 +169,6 @@ export const headFileTexts = headFiles;
 export const fixtureSource: DiffSource = {
   fetchFiles: async () => parseUnifiedDiff(diffLines.join('\n')),
   resolveHeadSha: async () => 'f'.repeat(40),
+  confirmHeadSha: async () => 'f'.repeat(40),
   fetchFileAtSha: async (_ctx, _sha, path) => headFiles[path] ?? null,
 };

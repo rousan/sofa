@@ -63,6 +63,12 @@ export function parseUnifiedDiff(text: string): DiffFile[] {
   const lines = String(text).replace(/\r\n/g, '\n').split('\n');
   let file: DiffFile | null = null;
   let hunk: Hunk | null = null;
+  // How many lines of each side the current hunk still expects, taken from its
+  // header. Without this the parser cannot tell a hunk's last line from the
+  // lines that follow it, and a document ending in a newline yields one empty
+  // string that would be absorbed as a phantom context line.
+  let pendingOld = 0;
+  let pendingNew = 0;
 
   for (const line of lines) {
     if (line.startsWith('diff --git ')) {
@@ -117,10 +123,14 @@ export function parseUnifiedDiff(text: string): DiffFile[] {
         lines: [],
       };
       file.hunks.push(hunk);
+      pendingOld = hunk.oldCount;
+      pendingNew = hunk.newCount;
       continue;
     }
 
-    if (!hunk) continue;
+    // Past the end of the hunk's declared length, so this line belongs to the
+    // document rather than to the hunk.
+    if (!hunk || (pendingOld <= 0 && pendingNew <= 0)) continue;
     // The "\ No newline at end of file" marker carries no content.
     if (line.startsWith('\\')) continue;
 
@@ -132,8 +142,16 @@ export function parseUnifiedDiff(text: string): DiffFile[] {
     if (!kind) continue;
 
     hunk.lines.push({ kind, text: line === '' ? '' : line.slice(1) });
-    if (kind === 'add') file.additions++;
-    else if (kind === 'del') file.deletions++;
+    if (kind === 'add') {
+      file.additions++;
+      pendingNew--;
+    } else if (kind === 'del') {
+      file.deletions++;
+      pendingOld--;
+    } else {
+      pendingOld--;
+      pendingNew--;
+    }
   }
 
   // A hunk header can claim a length its body does not deliver when a diff is

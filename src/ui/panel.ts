@@ -26,6 +26,14 @@ const MAX_SIDEBAR = 720;
 const WIDTH_KEY = 'sofa:sidebarWidth';
 
 /**
+ * How many files to fetch at once while warming the cache.
+ *
+ * Enough to hide the latency of a click, few enough to leave the browser's
+ * connection budget for whatever the user actually asked for.
+ */
+const PREFETCH_CONCURRENCY = 4;
+
+/**
  * The forge calls the panel depends on.
  *
  * Declaring them as an interface lets `test/harness.html` render the panel from
@@ -39,11 +47,17 @@ export interface DiffSource {
    */
   fetchFiles: (ctx: PrContext) => Promise<DiffFile[]>;
   /**
-   * Resolve the pull request's head commit sha.
+   * Resolve the pull request's head commit sha, cheaply and possibly wrongly.
    *
    * @param ctx - The pull request being reviewed.
    */
   resolveHeadSha: (ctx: PrContext) => Promise<string | null>;
+  /**
+   * Resolve the head commit sha authoritatively, at the cost of a request.
+   *
+   * @param ctx - The pull request being reviewed.
+   */
+  confirmHeadSha: (ctx: PrContext) => Promise<string | null>;
   /**
    * Fetch one file's full text at a commit.
    *
@@ -69,6 +83,11 @@ export interface PanelOptions {
    * to a full-viewport overlay.
    */
   anchor?: Element | null;
+  /**
+   * Finds the tab bar again after the page has re-rendered and thrown the
+   * previous one away.
+   */
+  findAnchor?: () => Element | null;
   /** Called with the file count once the diff has loaded, for the tab counter. */
   onFileCount?: (count: number) => void;
 }
@@ -99,61 +118,158 @@ export interface Panel {
 let instance: Panel | null = null;
 
 /**
- * Find the element after which GitHub renders the pull request tab's content.
+ * Turn a failed diff fetch into something the reader can act on.
  *
- * The tab bar and the content are siblings, but how deeply the bar is wrapped
- * differs between github.com and Enterprise releases, so this climbs from the
- * bar until it reaches a node that actually has content after it.
+ * The status codes each mean something specific here, and a bare number sends
+ * people looking in the wrong place: a 403 is almost always the forge throttling
+ * repeated .diff downloads rather than a permissions problem, and a 404 on a
+ * page that plainly exists means the session is not being sent.
+ *
+ * @param err - Whatever the load threw.
+ * @returns A sentence for the banner.
+ */
+function describeLoadFailure(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.startsWith('403')) {
+    return `Could not load the diff (${message.trim()}). The forge refused it, usually because it is `
+      + 'throttling repeated diff downloads. Wait a moment, then use Reload diff.';
+  }
+  if (message.startsWith('404')) {
+    return `Could not load the diff (${message.trim()}). The pull request was not found, which usually `
+      + 'means the session has expired; reload the page and sign in again.';
+  }
+  return `Could not load the diff: ${message}`;
+}
+
+/**
+ * Where the panel goes, and what it stands in for.
+ */
+interface MountPlan {
+  /** Page regions to hide while the panel is open. */
+  hide: HTMLElement[];
+  /** The element the panel is inserted into. */
+  parent: Element;
+  /** The node the panel is inserted before, or null to append. */
+  before: Node | null;
+}
+
+/**
+ * The containers GitHub renders a pull request tab's content into.
+ *
+ * Both generations are listed: the older buckets, still used by Enterprise, and
+ * the page-layout regions of the current github.com, whose main column and
+ * sidebar are separate regions that must both give way.
+ */
+const CONTENT_REGION_SELECTORS = [
+  '#files_bucket',
+  '#discussion_bucket',
+  '.pull-request-tab-content',
+  '[class*="PageLayout-Content"]',
+  '[class*="PageLayout-Pane"]',
+];
+
+/**
+ * Order elements the way they appear in the document.
+ *
+ * @param elements - Elements to sort, in any order.
+ * @returns The same elements, first in the document first.
+ */
+function inDocumentOrder(elements: HTMLElement[]): HTMLElement[] {
+  return [...elements].sort((a, b) =>
+    (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 ? -1 : 1);
+}
+
+/**
+ * Work out where to put the panel and what it stands in for.
+ *
+ * Naming the content regions directly is what keeps this honest. Walking up
+ * from the tab bar until a sibling appeared, which is what the fallback below
+ * still does, lands inside the page header on current github.com: the panel
+ * mounts there and the conversation goes on rendering underneath it.
  *
  * @param anchor - Any element inside the pull request tab bar.
- * @returns The marker element, or null when the layout could not be read.
+ * @param panel - The panel's own root, which no region may be measured against.
+ * @returns The plan, or null when the layout could not be read.
  */
-function findContentMarker(anchor: Element | null | undefined): Element | null {
+function findMountPlan(anchor: Element | null | undefined, panel: HTMLElement): MountPlan | null {
   if (!anchor) return null;
+
+  const matches = CONTENT_REGION_SELECTORS
+    .flatMap((selector) => [...document.querySelectorAll<HTMLElement>(selector)])
+    // A region containing the tab bar is the page's frame, not the tab's content.
+    .filter((element) => !element.contains(anchor))
+    // Once mounted, the panel sits inside one of these regions. Including an
+    // ancestor of the panel would make the plan un-satisfiable: it can never be
+    // hidden without hiding the panel, so it would read as permanently wrong and
+    // the panel would be re-mounted on every mutation, for ever.
+    .filter((element) => element !== panel && !element.contains(panel));
+  const outermost = inDocumentOrder(
+    matches.filter((element) => !matches.some((other) => other !== element && other.contains(element))),
+  );
+
+  const first = outermost[0];
+  if (first?.parentElement) {
+    return { hide: outermost, parent: first.parentElement, before: first };
+  }
+
   let node: Element = anchor.closest('nav, [role="tablist"], .tabnav-tabs') ?? anchor;
   while (!node.nextElementSibling) {
     const parent: Element | null = node.parentElement;
     // Stop before escaping the page's content region; body-level siblings are
     // scripts and dialogs, not the tab's content.
-    if (!parent || parent === document.body || parent.tagName === 'BODY') return null;
+    if (!parent || parent === document.body) return null;
     node = parent;
   }
-  return node;
+  const parent = node.parentElement;
+  if (!parent) return null;
+  const hide: HTMLElement[] = [];
+  let sibling: Element | null = node.nextElementSibling;
+  while (sibling) {
+    if (sibling instanceof HTMLElement) hide.push(sibling);
+    sibling = sibling.nextElementSibling;
+  }
+  return { hide, parent, before: node.nextSibling };
 }
 
 /**
- * Hide GitHub's own tab content and put the panel in its place.
+ * Hide the page's own content and put the panel in its place.
  *
- * Nothing is removed: each hidden sibling keeps its previous inline `display`
+ * Hiding and mounting are deliberately separate. GitHub goes on re-rendering
+ * the region it is no longer showing, so freshly created nodes have to be
+ * hidden again and again, but the panel itself must only move when it is
+ * genuinely in the wrong place: moving it between a mousedown and a mouseup
+ * destroys the click, which is exactly how a tree row stops responding.
+ *
+ * Nothing is removed: each hidden element keeps its previous inline `display`
  * so `restoreSiblings` can put the page back exactly as it was.
  *
  * @param element - The panel's root element.
- * @param marker - The element returned by `findContentMarker`.
- * @returns The siblings that were hidden, with the styles to restore.
+ * @param plan - Where to mount, from `findMountPlan`.
+ * @param hidden - Running record of hidden elements, appended to in place.
  */
-function takeOverContent(element: HTMLElement, marker: Element): { node: HTMLElement; display: string }[] {
-  const hidden: { node: HTMLElement; display: string }[] = [];
-  let sibling = marker.nextElementSibling;
-  while (sibling) {
-    const next = sibling.nextElementSibling;
-    if (sibling !== element && sibling instanceof HTMLElement) {
-      hidden.push({ node: sibling, display: sibling.style.display });
-      sibling.style.display = 'none';
-    }
-    sibling = next;
+function applyMountPlan(
+  element: HTMLElement,
+  plan: MountPlan,
+  hidden: { node: HTMLElement; display: string }[],
+): void {
+  for (const node of plan.hide) {
+    if (node === element || node.contains(element) || node.style.display === 'none') continue;
+    hidden.push({ node, display: node.style.display });
+    node.style.display = 'none';
   }
-  marker.parentElement?.insertBefore(element, marker.nextSibling);
-  return hidden;
+  if (!element.isConnected || element.parentElement !== plan.parent) {
+    plan.parent.insertBefore(element, plan.before);
+  }
 }
 
 /**
- * Give the page back the content that `takeOverContent` hid.
+ * Give the page back the content that `applyMountPlan` hid.
  *
- * @param hidden - The record returned by `takeOverContent`.
+ * @param hidden - The record built up by `applyMountPlan`.
  */
 function restoreSiblings(hidden: { node: HTMLElement; display: string }[]): void {
   for (const entry of hidden) {
-    entry.node.style.display = entry.display;
+    if (entry.node.isConnected) entry.node.style.display = entry.display;
   }
   hidden.length = 0;
 }
@@ -176,6 +292,12 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   let viewerHandle: ViewerHandle | null = null;
   let loadToken = 0;
   let loaded = false;
+  // Whether the head sha has been checked against its authoritative source,
+  // which only happens once, and only if a file turns out not to match.
+  let headShaConfirmed = false;
+  // Bumped whenever the diff is reloaded, so an in-flight prefetch for the old
+  // revision stops instead of filling the cache with stale text.
+  let prefetchToken = 0;
   const viewed = loadViewed(ctx);
   const collapsed = new Set<string>();
   const models = new Map<string, FileModel>();
@@ -265,6 +387,33 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   }
 
   /**
+   * Move the selected highlight without rebuilding the tree.
+   *
+   * Rebuilding it on every click throws away and recreates a row per changed
+   * file, which is wasted work on a large pull request and makes the click feel
+   * heavier than it is.
+   *
+   * @param path - The path that is now open.
+   */
+  function updateSelection(path: string): void {
+    for (const row of treeMount.querySelectorAll<HTMLElement>('[data-sofa-path]')) {
+      row.classList.toggle('is-selected', row.dataset['sofaPath'] === path);
+    }
+  }
+
+  /**
+   * Reflect one file's viewed state in the tree and the counter.
+   *
+   * @param path - The file whose state changed.
+   */
+  function updateViewed(path: string): void {
+    const row = treeMount.querySelector<HTMLElement>(`[data-sofa-path="${CSS.escape(path)}"]`);
+    row?.classList.toggle('is-viewed', viewed.has(path));
+    const count = files.filter((file) => viewed.has(file.path)).length;
+    sidebarMeta.textContent = `${count} / ${files.length} viewed`;
+  }
+
+  /**
    * Redraw the sidebar tree and the two meta lines from current state.
    */
   function renderSidebar(): void {
@@ -308,16 +457,39 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     const file = files.find((entry) => entry.path === path);
     if (!file) return;
     selectedPath = path;
-    renderSidebar();
+    updateSelection(path);
 
     const token = ++loadToken;
     if (!models.has(path)) {
       setViewerMessage(`Loading ${path}`);
-      const needsHead = !file.binary && file.status !== 'deleted';
-      const headText = needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null;
-      // A newer selection landed while this file was in flight.
-      if (token !== loadToken) return;
-      models.set(path, buildFileModel(file, headText));
+      try {
+        const needsHead = !file.binary && file.status !== 'deleted';
+        let model = buildFileModel(file, needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null);
+
+        // The file did not match the diff, so the sha it was fetched at was the
+        // wrong one. Confirm the head sha against the pull request's own patch
+        // and try again before settling for a hunks-only rendering.
+        if (model.mismatch && !headShaConfirmed) {
+          headShaConfirmed = true;
+          const confirmed = await source.confirmHeadSha(ctx);
+          if (confirmed && confirmed !== headSha) {
+            headSha = confirmed;
+            // Anything cached was built against the wrong revision.
+            models.clear();
+            model = buildFileModel(file, await source.fetchFileAtSha(ctx, headSha, file.path));
+          }
+        }
+
+        // A newer selection landed while this file was in flight.
+        if (token !== loadToken) return;
+        models.set(path, model);
+      } catch (err) {
+        // Without this the viewer would sit on "Loading" for ever, with the
+        // reason only visible in the console.
+        if (token !== loadToken) return;
+        setViewerMessage(`Could not open ${path}: ${err instanceof Error ? err.message : String(err)}`);
+        return;
+      }
     }
 
     const model = models.get(path);
@@ -333,28 +505,42 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
         if (isViewed) viewed.add(target);
         else viewed.delete(target);
         saveViewed(ctx, viewed);
-        renderSidebar();
+        updateViewed(target);
       },
       onModeChange: (nextMode) => {
         mode = nextMode;
         void selectFile(path);
       },
     });
-    prefetchNeighbour(path);
   }
 
   /**
-   * Warm the cache for the file after the current one.
+   * Fetch every file's text in the background, a few at a time.
    *
-   * @param path - The path currently displayed.
+   * Clicking a file should feel instant, and it only does if the text is
+   * already there: the fetch is the whole of the delay. Requests are capped so
+   * a large pull request does not open dozens of connections at once, and the
+   * fetch layer collapses a click onto an in-flight prefetch rather than
+   * starting a second request for the same file.
    */
-  function prefetchNeighbour(path: string): void {
-    const order = files.map((file) => file.path);
-    const next = order[order.indexOf(path) + 1];
-    if (!next) return;
-    const file = files.find((entry) => entry.path === next);
-    if (!file || file.binary || file.status === 'deleted' || models.has(next)) return;
-    void source.fetchFileAtSha(ctx, headSha, next);
+  async function prefetchAll(): Promise<void> {
+    const queue = files
+      .filter((file) => !file.binary && file.status !== 'deleted')
+      .map((file) => file.path);
+    const token = prefetchToken;
+
+    /**
+     * Take paths off the shared queue until it runs dry.
+     */
+    async function worker(): Promise<void> {
+      for (let next = queue.shift(); next; next = queue.shift()) {
+        // A reload or a different pull request happened; stop wasting requests.
+        if (token !== prefetchToken) return;
+        await source.fetchFileAtSha(ctx, headSha, next);
+      }
+    }
+
+    await Promise.all(Array.from({ length: PREFETCH_CONCURRENCY }, () => worker()));
   }
 
   /**
@@ -394,9 +580,13 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       const first = files[0];
       if (first) await selectFile(first.path);
       else setViewerMessage('This pull request has no file changes.');
+      // Only once something is on screen, so the first file is never queued
+      // behind the rest.
+      prefetchToken++;
+      void prefetchAll();
     } catch (err) {
       loaded = false;
-      setBanner(`Could not load the diff: ${err instanceof Error ? err.message : String(err)}`);
+      setBanner(describeLoadFailure(err));
       viewerMount.textContent = '';
     }
   }
@@ -485,22 +675,85 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   /**
    * Siblings currently hidden because the panel took their place in the page.
    */
-  let hiddenSiblings: { node: HTMLElement; display: string }[] = [];
+  const hiddenSiblings: { node: HTMLElement; display: string }[] = [];
+
+  /**
+   * Finds the tab bar to mount against, called again on every re-mount.
+   *
+   * A stored element is no use here: React replaces the nav wholesale, so the
+   * node that was found at open time is detached by the time it is needed.
+   */
+  const findAnchor = options.findAnchor ?? (() => null);
+
+  /**
+   * Watches the container the panel lives in.
+   *
+   * GitHub renders the pull request with React and re-renders that container on
+   * its own schedule, which throws away anything injected into it. Without this,
+   * the panel silently disappears mid-review.
+   */
+  let hostObserver: MutationObserver | null = null;
+
+  /**
+   * True while the panel is re-mounting itself.
+   *
+   * Moving the panel is itself a mutation, so without this the observer would
+   * react to its own work.
+   */
+  let remounting = false;
+
+  /**
+   * Put the panel back if the page threw it away, and hide any content the page
+   * re-added behind it.
+   */
+  function remountIfNeeded(): void {
+    if (!panel.isOpen() || element.classList.contains('sofa-root--overlay') || remounting) return;
+    const plan = findMountPlan(findAnchor(), element);
+    if (!plan) return;
+    // A re-render replaces the regions wholesale, so a hidden one that is no
+    // longer in the document, or a fresh one that is not hidden yet, means the
+    // page has put its own content back.
+    // Only a region that is visible and is not an ancestor of the panel counts
+    // as the page having taken its content back.
+    const uncovered = plan.hide.some((node) => node.style.display !== 'none'
+      && node !== element && !node.contains(element));
+    if (!element.isConnected || element.parentElement !== plan.parent || uncovered) {
+      remounting = true;
+      try {
+        applyMountPlan(element, plan, hiddenSiblings);
+      } finally {
+        remounting = false;
+      }
+    }
+  }
+
+  /**
+   * Watch the document for the page replacing the panel's container.
+   *
+   * The whole body is watched rather than one container, because a React
+   * re-render can replace any ancestor, taking the container with it. The
+   * callback is debounced and does nothing but a connectivity check, so the
+   * breadth costs little.
+   */
+  function watchHost(): void {
+    hostObserver?.disconnect();
+    hostObserver = new MutationObserver(debounce(remountIfNeeded, 150));
+    hostObserver.observe(document.body, { childList: true, subtree: true });
+  }
 
   const panel: Panel = {
     ctx,
     open(anchor) {
-      const marker = findContentMarker(anchor ?? options.anchor ?? null);
-      if (marker) {
+      const plan = findMountPlan(anchor ?? findAnchor(), element);
+      if (plan) {
         // Inline: stand in for GitHub's own tab content, leaving its tab bar,
         // header and navigation untouched above.
         element.classList.add('sofa-root--inline');
         element.classList.remove('sofa-root--overlay');
         document.documentElement.classList.remove('sofa-locked');
-        if (element.previousElementSibling !== marker) {
-          restoreSiblings(hiddenSiblings);
-          hiddenSiblings = takeOverContent(element, marker);
-        }
+        restoreSiblings(hiddenSiblings);
+        applyMountPlan(element, plan, hiddenSiblings);
+        watchHost();
       } else {
         // Fallback: an unreadable layout still gets a usable full-screen panel.
         element.classList.add('sofa-root--overlay');
@@ -514,6 +767,8 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     close() {
       element.classList.remove('is-open');
       document.documentElement.classList.remove('sofa-locked');
+      hostObserver?.disconnect();
+      hostObserver = null;
       restoreSiblings(hiddenSiblings);
       panel.onClose?.();
     },
@@ -522,6 +777,8 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     },
     destroy() {
       document.removeEventListener('keydown', onKeyDown, true);
+      hostObserver?.disconnect();
+      hostObserver = null;
       restoreSiblings(hiddenSiblings);
       element.remove();
       document.documentElement.classList.remove('sofa-locked');

@@ -120,7 +120,7 @@ export function mergeFullFile(file: DiffFile, headLines: string[]): { rows: Row[
  */
 export function buildFileModel(file: DiffFile, headText: string | null): FileModel {
   if (file.binary) {
-    return { mode: 'binary', rows: [], complete: false, note: 'Binary file not shown.' };
+    return { mode: 'binary', rows: [], complete: false, note: 'Binary file not shown.', mismatch: false };
   }
   // A deleted file's diff contains every removed line and an added file's diff
   // contains every added line, so for those the hunks are the whole file.
@@ -129,13 +129,14 @@ export function buildFileModel(file: DiffFile, headText: string | null): FileMod
   if (headText != null && file.status !== 'deleted') {
     const merged = mergeFullFile(file, splitLines(headText));
     if (merged.reliable) {
-      return { mode: 'full', rows: merged.rows, complete: true, note: '' };
+      return { mode: 'full', rows: merged.rows, complete: true, note: '', mismatch: false };
     }
     return {
       mode: 'hunks',
       rows: rowsFromHunks(file),
       complete: hunksAreWholeFile,
       note: 'The fetched file did not match this diff, so only the changed hunks are shown.',
+      mismatch: true,
     };
   }
 
@@ -144,6 +145,7 @@ export function buildFileModel(file: DiffFile, headText: string | null): FileMod
     rows: rowsFromHunks(file),
     complete: hunksAreWholeFile,
     note: hunksAreWholeFile ? '' : 'Could not load the full file, so only the changed hunks are shown.',
+    mismatch: false,
   };
 }
 
