@@ -20,36 +20,40 @@ interface MockLine {
 }
 
 /**
- * What GitHub shows: the change, and almost nothing round it.
+ * What GitHub shows: the two lines that changed, and little else.
  */
 const BEFORE: MockLine[] = [
-  { no: 0, text: '@@ -142,7 +142,7 @@', kind: 'skip' },
-  { no: 142, text: '  const rows = [];' },
-  { no: 143, text: '  for (const hunk of hunks) {' },
-  { no: 144, text: '    cursor = hunk.start;', kind: 'del' },
-  { no: 144, text: '    cursor = Math.max(cursor, hunk.start);', kind: 'add' },
-  { no: 145, text: '    delta += hunk.newCount;' },
-  { no: 146, text: '  }' },
+  { no: 0, text: '@@ -15,5 +15,5 @@', kind: 'skip' },
+  { no: 15, text: '  const mid = Math.floor(arr.length / 2);' },
+  { no: 16, text: '  const left = mergeSort(arr.slice(0, mid));', kind: 'del' },
+  { no: 17, text: '  const right = mergeSort(arr.slice(mid));', kind: 'del' },
+  { no: 16, text: '  const left = mergeSort(arr.slice(0, mid), cmp);', kind: 'add' },
+  { no: 17, text: '  const right = mergeSort(arr.slice(mid), cmp);', kind: 'add' },
+  { no: 18, text: '' },
+  { no: 19, text: '  return merge(left, right, cmp);' },
 ];
 
 /**
- * What Sofa shows: the same change, inside the function it belongs to.
+ * What Sofa shows: the same change, inside the function that explains it.
+ *
+ * The signature is the point. Two lines forgot to pass `compare` down the
+ * recursion, and you cannot see that from the hunk alone, because the default
+ * comparator that makes it wrong is four lines above the change.
  */
 const AFTER: MockLine[] = [
-  { no: 131, text: 'export function mergeFullFile(file, head) {' },
-  { no: 132, text: '  let cursor = 1;' },
-  { no: 133, text: '  let delta = 0;' },
-  { no: 134, text: '' },
-  { no: 135, text: '  // walk the file, not just the hunks' },
-  { no: 140, text: '  const rows = [];' },
-  { no: 143, text: '  for (const hunk of hunks) {' },
-  { no: 144, text: '    cursor = hunk.start;', kind: 'del' },
-  { no: 144, text: '    cursor = Math.max(cursor, hunk.start);', kind: 'add' },
-  { no: 145, text: '    delta += hunk.newCount;' },
-  { no: 146, text: '  }' },
-  { no: 147, text: '' },
-  { no: 148, text: '  return { rows, reliable };' },
-  { no: 149, text: '}' },
+  { no: 11, text: 'function mergeSort(arr, cmp = (a, b) => a - b) {' },
+  { no: 12, text: '  if (arr.length <= 1) {' },
+  { no: 13, text: '    return arr;' },
+  { no: 14, text: '  }' },
+  { no: 15, text: '' },
+  { no: 15, text: '  const mid = Math.floor(arr.length / 2);' },
+  { no: 16, text: '  const left = mergeSort(arr.slice(0, mid));', kind: 'del' },
+  { no: 17, text: '  const right = mergeSort(arr.slice(mid));', kind: 'del' },
+  { no: 16, text: '  const left = mergeSort(arr.slice(0, mid), cmp);', kind: 'add' },
+  { no: 17, text: '  const right = mergeSort(arr.slice(mid), cmp);', kind: 'add' },
+  { no: 18, text: '' },
+  { no: 19, text: '  return merge(left, right, cmp);' },
+  { no: 20, text: '}' },
 ];
 
 /**
@@ -105,8 +109,8 @@ function Mock({ title, note, lines, highlight }: { title: string; note: string; 
 export function Comparison() {
   return (
     <div className="grid gap-5 md:grid-cols-2">
-      <Mock title="GitHub" note="7 lines of the file" lines={BEFORE} />
-      <Mock title="Sofa" note="the function it lives in" lines={AFTER} highlight />
+      <Mock title="GitHub" note="the lines that changed" lines={BEFORE} />
+      <Mock title="Sofa" note="the function they live in" lines={AFTER} highlight />
     </div>
   );
 }

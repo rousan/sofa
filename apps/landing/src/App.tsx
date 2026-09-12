@@ -6,11 +6,12 @@
  * colour, because the screenshots are already full of GitHub's own, and a page
  * competing with them would only make them harder to read.
  */
-import { Card, SpecCard } from './components/Card.tsx';
+import { Card, CardGrid } from './components/Card.tsx';
 import { Comparison } from './components/Comparison.tsx';
 import { InstallButton } from './components/InstallButton.tsx';
 import { GitHubIcon } from './components/icons.tsx';
 import {
+  FROM_SOURCE,
   HERO,
   HOW_IT_WORKS,
   INSTALL_COMMANDS,
@@ -19,6 +20,18 @@ import {
   REQUIREMENTS,
   SHORTCUTS,
 } from './content.ts';
+
+/**
+ * A small label above a band of cards.
+ *
+ * @param props - The label text.
+ * @returns The heading.
+ */
+function Label({ children }: { children: string }) {
+  return (
+    <h2 className="mb-3 px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">{children}</h2>
+  );
+}
 
 /**
  * Render the page.
@@ -34,10 +47,10 @@ export function App() {
             <img src="/icon.png" alt="" width={18} height={18} className="rounded" />
             Sofa
           </a>
-          <span className="text-ink-faint">Chrome</span>
+          <span className="text-ink-faint">Chrome extension</span>
           <a href={LINKS.repo} className="ml-auto hidden items-center gap-1.5 text-ink-soft transition hover:text-ink sm:flex">
             <GitHubIcon className="h-3.5 w-3.5" />
-            Source
+            GitHub
           </a>
           <span className="ml-auto sm:ml-4">
             <InstallButton />
@@ -57,7 +70,7 @@ export function App() {
           </div>
         </section>
 
-        <div className="space-y-14">
+        <div className="space-y-20">
           <Card caption="A tab of its own, beside Files changed. The file tree on the left, the whole file on the right.">
             <img
               src="/screenshot.png"
@@ -68,22 +81,23 @@ export function App() {
 
           <div>
             <Comparison />
-            <p className="mx-auto mt-3 max-w-md text-center text-[12px] leading-5 text-ink-faint">
-              The same change, as GitHub shows it and as Sofa shows it. Seven lines, or the function
-              those lines live in.
+            <p className="mx-auto mt-3 max-w-lg text-center text-[12px] leading-5 text-ink-faint">
+              Two lines forgot to pass the comparator down. GitHub shows you the lines; Sofa shows you
+              the function, where the default comparator that makes it wrong is four lines above.
             </p>
           </div>
 
-          <SpecCard label="How it works" rows={HOW_IT_WORKS} />
+          <div>
+            <Label>What it does</Label>
+            <CardGrid items={HOW_IT_WORKS} />
+          </div>
 
-          <div className="overflow-hidden rounded-2xl border border-edge bg-card">
-            <p className="px-5 pt-5 pb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
-              Keyboard
-            </p>
-            <div className="grid sm:grid-cols-2">
+          <div>
+            <Label>Keyboard</Label>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {SHORTCUTS.map((shortcut) => (
-                <div key={shortcut.action} className="flex items-center gap-3 border-t border-edge px-5 py-3">
-                  <span className="flex w-[74px] shrink-0 items-center gap-1">
+                <div key={shortcut.action} className="flex items-center gap-3 rounded-2xl border border-edge bg-card px-4 py-3.5">
+                  <span className="flex shrink-0 items-center gap-1">
                     {shortcut.keys.map((key, index) => (
                       <span key={key} className="flex items-center gap-1">
                         {index > 0 && <span className="text-[11px] text-ink-faint">/</span>}
@@ -99,26 +113,25 @@ export function App() {
             </div>
           </div>
 
-          <SpecCard label="Requirements" rows={REQUIREMENTS} />
-          <SpecCard label="Private by design" rows={PRIVACY} />
+          <div>
+            <Label>What it needs</Label>
+            <CardGrid items={REQUIREMENTS} columns={2} />
+          </div>
 
-          {!LINKS.store && (
-            <div className="overflow-hidden rounded-2xl border border-edge bg-card">
-              <p className="px-5 pt-5 pb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">
-                Install from source
-              </p>
-              <div className="border-t border-edge px-5 py-4">
-                <p className="mb-3 text-ink-soft">
-                  The Chrome Web Store listing is in review. Until it lands, build it yourself and load{' '}
-                  <code className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[12px]">apps/ext/dist</code> as an
-                  unpacked extension.
-                </p>
-                <pre className="overflow-x-auto rounded-lg border border-edge bg-canvas p-3.5 font-mono text-[12px] leading-relaxed">
-                  <code>{INSTALL_COMMANDS.join('\n')}</code>
-                </pre>
-              </div>
+          <div>
+            <Label>Private by design</Label>
+            <CardGrid items={PRIVACY} columns={2} />
+          </div>
+
+          <div>
+            <Label>{FROM_SOURCE.label}</Label>
+            <div className="rounded-2xl border border-edge bg-card p-5">
+              <p className="mb-4 text-ink-soft">{FROM_SOURCE.body}</p>
+              <pre className="overflow-x-auto rounded-lg border border-edge bg-canvas p-3.5 font-mono text-[12px] leading-relaxed">
+                <code>{INSTALL_COMMANDS.join('\n')}</code>
+              </pre>
             </div>
-          )}
+          </div>
         </div>
 
         <section className="mx-auto max-w-[460px] pt-20 text-center">
