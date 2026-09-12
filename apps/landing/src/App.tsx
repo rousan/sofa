@@ -10,16 +10,7 @@ import { Card, CardGrid } from './components/Card.tsx';
 import { Comparison } from './components/Comparison.tsx';
 import { InstallButton } from './components/InstallButton.tsx';
 import { GitHubIcon } from './components/icons.tsx';
-import {
-  FROM_SOURCE,
-  HERO,
-  HOW_IT_WORKS,
-  INSTALL_COMMANDS,
-  LINKS,
-  PRIVACY,
-  REQUIREMENTS,
-  SHORTCUTS,
-} from './content.ts';
+import { HERO, HOW_IT_WORKS, LINKS, PRIVACY, REQUIREMENTS, SHORTCUTS } from './content.ts';
 
 /**
  * A small label above a band of cards.
@@ -123,15 +114,6 @@ export function App() {
             <CardGrid items={PRIVACY} columns={2} />
           </div>
 
-          <div>
-            <Label>{FROM_SOURCE.label}</Label>
-            <div className="rounded-2xl border border-edge bg-card p-5">
-              <p className="mb-4 text-ink-soft">{FROM_SOURCE.body}</p>
-              <pre className="overflow-x-auto rounded-lg border border-edge bg-canvas p-3.5 font-mono text-[12px] leading-relaxed">
-                <code>{INSTALL_COMMANDS.join('\n')}</code>
-              </pre>
-            </div>
-          </div>
         </div>
 
         <section className="mx-auto max-w-[460px] pt-24 text-center">
@@ -142,7 +124,7 @@ export function App() {
         </section>
       </main>
 
-      <footer className="border-t border-edge py-8">
+      <footer className="mt-16 border-t border-edge pt-8">
         <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-5 text-[12px] text-ink-faint">
           <span>&copy; 2026 Sofa. Free and open source.</span>
           <span className="flex items-center gap-5">
@@ -150,6 +132,18 @@ export function App() {
             <a href={LINKS.issues} className="transition hover:text-ink">Report a bug</a>
             <a href={LINKS.author} className="transition hover:text-ink">rousan</a>
           </span>
+        </div>
+
+        {/*
+          The name at the size the page can afford to give it. Monospace makes
+          the fit exact rather than guessed: every glyph is 0.6em wide, so four
+          of them fill the column at a twentieth under half its width. The
+          descender space is cropped so the word sits on the bottom edge.
+        */}
+        <div className="mx-auto mt-10 max-w-[1120px] overflow-hidden px-5" aria-hidden="true">
+          <p className="-mb-[0.2em] select-none text-[min(39vw,438px)] font-bold leading-none tracking-[-0.05em] text-ink/10">
+            sofa
+          </p>
         </div>
       </footer>
     </>

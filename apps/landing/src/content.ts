@@ -107,25 +107,3 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: ['/'], action: 'Filter files' },
   { keys: ['esc'], action: 'Back to GitHub' },
 ];
-
-/**
- * The commands for installing from source, shown while the listing is pending.
- */
-export const INSTALL_COMMANDS = [
-  'git clone https://github.com/rousan/sofa.git',
-  'cd sofa && pnpm install && pnpm build',
-];
-
-/**
- * The copy for the build-it-yourself card.
- *
- * The store is the way in; this is for people who would rather run a build they
- * made themselves, which for a tool that reads private code is a fair thing to
- * want.
- */
-export const FROM_SOURCE = {
-  label: 'Or build it yourself',
-  body:
-    'Sofa is the same code either way. Clone it, build it, and load apps/ext/dist as an '
-    + 'unpacked extension from chrome://extensions with Developer mode on.',
-};
