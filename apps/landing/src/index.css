@@ -2,7 +2,11 @@
 
 /*
  * Tailwind 4 keeps the theme in the stylesheet, so these tokens are the site's
- * whole palette.
+ * whole palette and its one typeface.
+ *
+ * JetBrains Mono sets everything, headings included. It is a developer tool,
+ * the page is mostly code and keys, and one typeface throughout reads as
+ * deliberate where a mixture reads as an accident.
  *
  * The page is a warm grey canvas with white cards on it, near-black text, and
  * no brand colour at all beyond the diff greens and reds the product itself
@@ -19,7 +23,7 @@
   --color-plus: #1a7f37;
   --color-minus: #cf222e;
 
-  --font-sans: -apple-system, system-ui, "SF Pro Text", "SF Pro Display", Inter, "Helvetica Neue", sans-serif;
+  --font-sans: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
 
