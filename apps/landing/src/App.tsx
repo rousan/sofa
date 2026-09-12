@@ -60,7 +60,7 @@ export function App() {
 
       <main id="top" className="mx-auto max-w-[1120px] px-5 pb-24">
         <section className="mx-auto max-w-[460px] pt-16 pb-10 sm:pt-24">
-          <h1 className="text-[40px] font-medium leading-[1.1] tracking-[-0.035em]">{HERO.headline}</h1>
+          <h1 className="text-[34px] font-medium leading-[1.15] tracking-[-0.04em] sm:text-[38px]">{HERO.headline}</h1>
           <p className="mt-4 text-ink-soft">{HERO.subhead}</p>
           <div className="mt-6 flex items-center gap-3">
             <InstallButton size="lg" />
