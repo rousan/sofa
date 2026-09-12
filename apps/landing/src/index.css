@@ -20,7 +20,7 @@
   --color-minus: #cf222e;
 
   --font-sans: -apple-system, system-ui, "SF Pro Text", "SF Pro Display", Inter, "Helvetica Neue", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
 
 html {
