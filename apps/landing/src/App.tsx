@@ -42,7 +42,7 @@ export function App() {
   return (
     <>
       <header className="sticky top-0 z-20 border-b border-edge/70 bg-canvas/85 backdrop-blur">
-        <nav className="mx-auto flex max-w-[880px] items-center gap-3 px-5 py-2.5">
+        <nav className="mx-auto flex max-w-[1120px] items-center gap-3 px-5 py-2.5">
           <a href="#top" className="flex items-center gap-1.5 font-semibold">
             <img src="/icon.png" alt="" width={18} height={18} className="rounded" />
             Sofa
@@ -58,7 +58,7 @@ export function App() {
         </nav>
       </header>
 
-      <main id="top" className="mx-auto max-w-[880px] px-5 pb-24">
+      <main id="top" className="mx-auto max-w-[1120px] px-5 pb-24">
         <section className="mx-auto max-w-[460px] pt-16 pb-10 sm:pt-24">
           <h1 className="text-[40px] font-medium leading-[1.1] tracking-[-0.035em]">{HERO.headline}</h1>
           <p className="mt-4 text-ink-soft">{HERO.subhead}</p>
@@ -70,15 +70,15 @@ export function App() {
           </div>
         </section>
 
-        <div className="space-y-20">
-          <Card caption="A tab of its own, beside Files changed. The file tree on the left, the whole file on the right.">
-            <img
-              src="/screenshot.png"
-              alt="The Sofa tab open on a pull request: a file tree on the left, and on the right a whole file with an added line highlighted in green."
-              className="block w-full"
-            />
-          </Card>
+        <Card caption="A tab of its own, beside Files changed. The file tree on the left, the whole file on the right.">
+          <img
+            src="/screenshot.png"
+            alt="The Sofa tab open on a pull request: a file tree on the left, and on the right a whole file with an added line highlighted in green."
+            className="block w-full"
+          />
+        </Card>
 
+        <div className="mx-auto mt-28 max-w-[880px] space-y-20">
           <div>
             <Comparison />
             <p className="mx-auto mt-3 max-w-lg text-center text-[12px] leading-5 text-ink-faint">
@@ -134,7 +134,7 @@ export function App() {
           </div>
         </div>
 
-        <section className="mx-auto max-w-[460px] pt-20 text-center">
+        <section className="mx-auto max-w-[460px] pt-24 text-center">
           <h2 className="text-[22px] font-medium tracking-[-0.02em]">Read the next one properly.</h2>
           <div className="mt-5 flex justify-center">
             <InstallButton size="lg" />
@@ -143,7 +143,7 @@ export function App() {
       </main>
 
       <footer className="border-t border-edge py-8">
-        <div className="mx-auto flex max-w-[880px] flex-wrap items-center justify-between gap-3 px-5 text-[12px] text-ink-faint">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-5 text-[12px] text-ink-faint">
           <span>&copy; 2026 Sofa. Free and open source.</span>
           <span className="flex items-center gap-5">
             <a href={LINKS.repo} className="transition hover:text-ink">Source</a>
