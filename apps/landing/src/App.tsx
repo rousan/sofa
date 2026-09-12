@@ -37,8 +37,8 @@ export function App() {
       <Nav />
 
       <main id="top" className="mx-auto max-w-[1120px] px-5 pb-24">
-        <section className="mx-auto max-w-[460px] pt-16 pb-10 sm:pt-24">
-          <h1 className="text-[34px] font-medium leading-[1.15] tracking-[-0.04em] sm:text-[38px]">{HERO.headline}</h1>
+        <section className="mx-auto max-w-[460px] pt-10 pb-8 sm:pt-24 sm:pb-10">
+          <h1 className="text-[26px] font-medium leading-[1.2] tracking-[-0.04em] sm:text-[34px] sm:leading-[1.15] lg:text-[38px]">{HERO.headline}</h1>
           <p className="mt-4 text-ink-soft">{HERO.subhead}</p>
           <div className="mt-6 flex items-center gap-3">
             <InstallButton size="lg" />
@@ -48,15 +48,17 @@ export function App() {
           </div>
         </section>
 
-        <Card caption="A tab of its own, beside Files changed. The file tree on the left, the whole file on the right.">
-          <img
-            src="/screenshot.png"
-            alt="The Sofa tab open on a pull request: a file tree on the left, and on the right a whole file with an added line highlighted in green."
-            className="block w-full"
-          />
+        <Card caption="A tab of its own, beside Files changed. The file tree on the left, the whole file on the right. Swipe to see it all.">
+          <div className="overflow-x-auto">
+            <img
+              src="/screenshot.png"
+              alt="The Sofa tab open on a pull request: a file tree on the left, and on the right a whole file with an added line highlighted in green."
+              className="block w-full min-w-[760px] sm:min-w-0"
+            />
+          </div>
         </Card>
 
-        <div className="mx-auto mt-28 max-w-[880px] space-y-20">
+        <div className="mx-auto mt-14 max-w-[880px] space-y-14 sm:mt-28 sm:space-y-20">
           <div>
             <Comparison />
             <p className="mx-auto mt-3 max-w-lg text-center text-[12px] leading-5 text-ink-faint">
@@ -103,7 +105,7 @@ export function App() {
 
         </div>
 
-        <section className="mx-auto max-w-[460px] pt-24 text-center">
+        <section className="mx-auto max-w-[460px] pt-16 text-center sm:pt-24">
           <h2 className="text-[22px] font-medium tracking-[-0.02em]">Read the next one properly.</h2>
           <div className="mt-5 flex justify-center">
             <InstallButton size="lg" />

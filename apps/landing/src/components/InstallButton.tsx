@@ -29,8 +29,8 @@ export function InstallButton({ size = 'sm' }: InstallButtonProps) {
     <a
       href={LINKS.store ?? LINKS.repo}
       className={[
-        'inline-flex items-center gap-2 rounded-full bg-ink font-semibold text-white transition hover:opacity-85',
-        large ? 'px-4 py-2 text-[13px]' : 'px-3 py-1.5 text-[12px]',
+        'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-ink font-semibold text-white transition hover:opacity-85',
+        large ? 'px-3.5 py-2 text-[12px] sm:px-4 sm:text-[13px]' : 'px-3 py-1.5 text-[11px] sm:text-[12px]',
       ].join(' ')}
     >
       <ChromeIcon className={large ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
