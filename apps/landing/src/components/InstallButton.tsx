@@ -34,7 +34,7 @@ export function InstallButton({ size = 'sm' }: InstallButtonProps) {
       ].join(' ')}
     >
       <ChromeIcon className={large ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
-      {LINKS.store ? 'Add to Chrome' : 'Get Sofa'}
+      {LINKS.store ? 'Add to Chrome' : 'Get Sofa extension'}
       <span className="text-white/55">{HERO.price}</span>
     </a>
   );

@@ -39,37 +39,34 @@ export function Card({ children, caption, className = '' }: CardProps) {
 }
 
 /**
- * Props for `SpecCard`.
+ * Props for `CardGrid`.
  */
-interface SpecCardProps {
-  /** The small uppercase label at the top of the card. */
-  label: string;
-  /** The rows, each a term and its explanation. */
-  rows: { term: string; detail: string }[];
+interface CardGridProps {
+  /** The cards, each a heading and a sentence or two. */
+  items: { term: string; detail: string }[];
+  /** How many across on a wide screen. */
+  columns?: 2 | 3;
 }
 
 /**
- * Render a labelled table of terms.
+ * Render a grid of small cards.
  *
- * This is the page's workhorse: how it works, what it needs, what it does with
- * your data. A row is far easier to scan than a paragraph, and it forces the
- * copy to stay honest about each claim.
+ * Each claim gets its own box, which is easier to skim than a table and easier
+ * to extend than a paragraph: one fact per card, and the eye can stop wherever
+ * it likes.
  *
- * @param props - The label and the rows.
- * @returns The card.
+ * @param props - The cards and how wide to lay them out.
+ * @returns The grid.
  */
-export function SpecCard({ label, rows }: SpecCardProps) {
+export function CardGrid({ items, columns = 3 }: CardGridProps) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-edge bg-card">
-      <p className="px-5 pt-5 pb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">{label}</p>
-      <dl className="m-0">
-        {rows.map((row) => (
-          <div key={row.term} className="grid grid-cols-[minmax(96px,150px)_1fr] gap-4 border-t border-edge px-5 py-3.5">
-            <dt className="text-ink">{row.term}</dt>
-            <dd className="m-0 text-ink-soft">{row.detail}</dd>
-          </div>
-        ))}
-      </dl>
+    <div className={`grid gap-3 sm:grid-cols-2 ${columns === 3 ? 'lg:grid-cols-3' : ''}`}>
+      {items.map((item) => (
+        <div key={item.term} className="rounded-2xl border border-edge bg-card p-5">
+          <h3 className="mb-1.5 font-semibold">{item.term}</h3>
+          <p className="m-0 text-ink-soft">{item.detail}</p>
+        </div>
+      ))}
     </div>
   );
 }
