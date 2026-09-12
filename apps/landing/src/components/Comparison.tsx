@@ -62,13 +62,13 @@ function Mock({ title, note, lines, highlight }: { title: string; note: string; 
   return (
     <div
       className={[
-        'overflow-hidden rounded-xl border bg-surface',
-        highlight ? 'border-brand/40 ring-1 ring-brand/20' : 'border-edge',
+        'overflow-hidden rounded-2xl border bg-card',
+        highlight ? 'border-ink/25' : 'border-edge',
       ].join(' ')}
     >
-      <div className="flex items-baseline justify-between gap-3 border-b border-edge bg-surface-soft px-4 py-2.5">
-        <span className="text-sm font-semibold">{title}</span>
-        <span className="text-xs text-ink-soft">{note}</span>
+      <div className="flex items-baseline justify-between gap-3 border-b border-edge px-4 py-2.5">
+        <span className="font-semibold">{title}</span>
+        <span className="text-[12px] text-ink-faint">{note}</span>
       </div>
       <div className="overflow-x-auto py-1 font-mono text-[11px] leading-5">
         {lines.map((line, index) => (
@@ -78,13 +78,13 @@ function Mock({ title, note, lines, highlight }: { title: string; note: string; 
               'flex whitespace-pre px-3',
               line.kind === 'add' ? 'bg-plus/10' : '',
               line.kind === 'del' ? 'bg-minus/10' : '',
-              line.kind === 'skip' ? 'bg-surface-soft text-ink-soft' : '',
+              line.kind === 'skip' ? 'bg-canvas text-ink-faint' : '',
             ].join(' ')}
           >
-            <span className="w-9 shrink-0 select-none text-right text-ink-soft/70">
+            <span className="w-9 shrink-0 select-none text-right text-ink-faint">
               {line.kind === 'skip' ? '' : line.no}
             </span>
-            <span className="w-4 shrink-0 select-none text-center text-ink-soft/70">
+            <span className="w-4 shrink-0 select-none text-center text-ink-faint">
               {line.kind === 'add' ? '+' : line.kind === 'del' ? '-' : ''}
             </span>
             <span className={line.kind === 'add' ? 'text-plus' : line.kind === 'del' ? 'text-minus' : ''}>
