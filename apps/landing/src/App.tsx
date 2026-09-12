@@ -10,16 +10,7 @@ import { Card, CardGrid } from './components/Card.tsx';
 import { Comparison } from './components/Comparison.tsx';
 import { InstallButton } from './components/InstallButton.tsx';
 import { GitHubIcon } from './components/icons.tsx';
-import {
-  FROM_SOURCE,
-  HERO,
-  HOW_IT_WORKS,
-  INSTALL_COMMANDS,
-  LINKS,
-  PRIVACY,
-  REQUIREMENTS,
-  SHORTCUTS,
-} from './content.ts';
+import { HERO, HOW_IT_WORKS, LINKS, PRIVACY, REQUIREMENTS, SHORTCUTS } from './content.ts';
 
 /**
  * A small label above a band of cards.
@@ -123,15 +114,6 @@ export function App() {
             <CardGrid items={PRIVACY} columns={2} />
           </div>
 
-          <div>
-            <Label>{FROM_SOURCE.label}</Label>
-            <div className="rounded-2xl border border-edge bg-card p-5">
-              <p className="mb-4 text-ink-soft">{FROM_SOURCE.body}</p>
-              <pre className="overflow-x-auto rounded-lg border border-edge bg-canvas p-3.5 font-mono text-[12px] leading-relaxed">
-                <code>{INSTALL_COMMANDS.join('\n')}</code>
-              </pre>
-            </div>
-          </div>
         </div>
 
         <section className="mx-auto max-w-[460px] pt-24 text-center">
