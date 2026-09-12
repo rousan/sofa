@@ -2,20 +2,25 @@
 
 /*
  * Tailwind 4 keeps the theme in the stylesheet, so these tokens are the site's
- * whole palette. The page is light regardless of the reader's system setting:
- * the product shot it is built around is a light screenshot, and a dark page
- * around it made the screenshot look like a hole cut in the layout.
+ * whole palette.
+ *
+ * The page is a warm grey canvas with white cards on it, near-black text, and
+ * no brand colour at all beyond the diff greens and reds the product itself
+ * uses. Restraint is the point: the screenshots are the only thing that should
+ * be loud, and they are already full of GitHub's own colour.
  */
 @theme {
-  --color-ink: #1f2328;
-  --color-ink-soft: #59636e;
-  --color-surface: #ffffff;
-  --color-surface-soft: #f6f8fa;
-  --color-edge: #d1d9e0;
-  --color-brand: #4b3dd6;
-  --color-brand-soft: #7c6cff;
+  --color-canvas: #f5f5f5;
+  --color-card: #ffffff;
+  --color-ink: #111111;
+  --color-ink-soft: #6e6e73;
+  --color-ink-faint: #9a9aa0;
+  --color-edge: #e4e4e6;
   --color-plus: #1a7f37;
   --color-minus: #cf222e;
+
+  --font-sans: -apple-system, system-ui, "SF Pro Text", "SF Pro Display", Inter, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 html {
@@ -24,7 +29,12 @@ html {
 }
 
 body {
-  background: var(--color-surface);
+  background: var(--color-canvas);
   color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
 }

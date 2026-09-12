@@ -23,60 +23,67 @@ export const LINKS = {
  * The one-line promise at the top of the page.
  */
 export const HERO = {
-  eyebrow: 'Chrome extension for code review',
-  headline: 'Review pull requests at your comfort',
+  headline: 'Review pull requests at your comfort.',
   subhead:
-    'GitHub shows you three lines around a change. Sofa shows you the file. A tab next to '
-    + 'Files changed, a real file tree, and every diff read in context.',
-  trust: ['Free and open source', 'No account', 'Nothing leaves your browser'],
+    'GitHub gives you three lines around a change. Sofa gives you the file it lives in, '
+    + 'in a tab of its own, next to Files changed.',
+  price: 'Free',
 };
 
 /**
- * A capability shown in the feature grid.
+ * One line of a spec table: a term, and what it means.
  */
-export interface Feature {
-  /** Short heading. */
-  title: string;
-  /** One or two sentences of detail. */
-  body: string;
-  /** Which glyph to draw beside it. */
-  icon: 'file' | 'tree' | 'palette' | 'keyboard' | 'bolt' | 'building';
+export interface SpecRow {
+  /** The thing being described. */
+  term: string;
+  /** What it does, in a sentence. */
+  detail: string;
 }
 
 /**
- * The feature grid.
+ * What the extension actually does, once installed.
  */
-export const FEATURES: Feature[] = [
+export const HOW_IT_WORKS: SpecRow[] = [
   {
-    icon: 'file',
-    title: 'Whole files, not hunks',
-    body: 'Every line of the file, with added and removed lines in place. One key toggles back to changes only.',
+    term: 'Whole files',
+    detail: 'Fetches the file at the head commit and renders all of it, with the diff spliced in. One key toggles back to changes only.',
   },
   {
-    icon: 'tree',
-    title: 'A file tree that works',
-    body: 'Collapsible directories, diff status, per-file counts, a filter, a draggable width, and viewed state that sticks.',
+    term: 'File tree',
+    detail: 'Collapsible directories, diff status, per-file counts, a filter, a draggable width, and viewed state that sticks.',
   },
   {
-    icon: 'palette',
-    title: 'Looks like GitHub',
-    body: "Built from GitHub's own colours, fonts and icons, so light, dark and dimmed all just work.",
+    term: 'A real tab',
+    detail: 'Sits beside Files changed. Conversation, Commits and Checks keep working; closing it hands the page back to GitHub.',
   },
   {
-    icon: 'keyboard',
-    title: 'Keyboard first',
-    body: 'Move between changes and files without touching the mouse. Mark a file viewed and move on.',
+    term: 'Instant',
+    detail: 'Every file is fetched the moment the diff loads, so clicking one in the tree opens it in milliseconds.',
   },
   {
-    icon: 'bolt',
-    title: 'Opens instantly',
-    body: 'Every file is fetched the moment the diff loads, so clicking one in the tree opens it in milliseconds.',
+    term: 'Your theme',
+    detail: "Built from GitHub's own colours, fonts and icons, so light, dark and dimmed all look right.",
   },
-  {
-    icon: 'building',
-    title: 'Works at work',
-    body: 'GitHub Enterprise too. Add your company host from the toolbar popup; nothing about it is baked in.',
-  },
+];
+
+/**
+ * What it needs to run.
+ */
+export const REQUIREMENTS: SpecRow[] = [
+  { term: 'Browser', detail: 'Chrome, or any Chromium browser that takes Manifest V3 extensions.' },
+  { term: 'GitHub', detail: 'github.com out of the box. Private repositories included, using the session you already have.' },
+  { term: 'Enterprise', detail: 'Click the toolbar icon, type your company GitHub hostname, accept the Chrome prompt. Once, per host.' },
+  { term: 'Account', detail: 'None. No sign-in, no token to create, no OAuth app to authorise.' },
+];
+
+/**
+ * What it does with your code, which is the question that matters.
+ */
+export const PRIVACY: SpecRow[] = [
+  { term: 'On your machine', detail: 'Sofa reads the pages you already have open, with the session you are already signed in with.' },
+  { term: 'No server', detail: 'There is nowhere to send anything. No backend, no analytics, no telemetry, no remote code.' },
+  { term: 'Stored locally', detail: 'Only which files you marked viewed, in your own browser, per pull request.' },
+  { term: 'Open source', detail: 'Every line is on GitHub, including the build that produces the uploaded package.' },
 ];
 
 /**
@@ -99,53 +106,6 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: ['v'], action: 'Mark the file viewed' },
   { keys: ['/'], action: 'Filter files' },
   { keys: ['esc'], action: 'Back to GitHub' },
-];
-
-/**
- * A question worth answering before someone installs.
- */
-export interface Question {
-  /** The question, as a reader would ask it. */
-  question: string;
-  /** The answer, in a sentence or two. */
-  answer: string;
-}
-
-/**
- * The questions people ask before installing a review tool.
- */
-export const FAQ: Question[] = [
-  {
-    question: 'Does my code go anywhere?',
-    answer:
-      'No. Sofa reads the pages you already have open, using the session you are already signed in with. '
-      + 'There is no server, no analytics and no telemetry. The only thing it stores is which files you '
-      + 'marked viewed, in your own browser.',
-  },
-  {
-    question: 'Does it work on private repositories?',
-    answer:
-      'Yes. It uses your existing GitHub session, so anything you can see in the browser, Sofa can render. '
-      + 'No token to create, no OAuth app to authorise.',
-  },
-  {
-    question: 'Does it work on GitHub Enterprise?',
-    answer:
-      'Yes. Click the Sofa icon in the toolbar, type your company GitHub hostname, and accept the Chrome '
-      + 'prompt. That grant lives in your browser; the hostname is never part of the extension.',
-  },
-  {
-    question: 'Does it replace the Files changed tab?',
-    answer:
-      'No. Sofa is its own tab beside it. Conversation, Commits and Checks keep working exactly as before, '
-      + 'and closing Sofa hands the page straight back to GitHub.',
-  },
-  {
-    question: 'Can I still comment on a pull request?',
-    answer:
-      'Comment and approve on GitHub’s own tab, which is one click away. Sofa is for reading the change; '
-      + 'it deliberately does not reimplement review actions.',
-  },
 ];
 
 /**
