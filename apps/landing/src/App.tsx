@@ -7,6 +7,8 @@
  * competing with them would only make them harder to read.
  */
 import { Card, CardGrid } from './components/Card.tsx';
+import { Footer } from './components/Footer.tsx';
+import { Nav } from './components/Nav.tsx';
 import { Comparison } from './components/Comparison.tsx';
 import { InstallButton } from './components/InstallButton.tsx';
 import { GitHubIcon } from './components/icons.tsx';
@@ -32,22 +34,7 @@ function Label({ children }: { children: string }) {
 export function App() {
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-edge/70 bg-canvas/85 backdrop-blur">
-        <nav className="mx-auto flex max-w-[1120px] items-center gap-3 px-5 py-2.5">
-          <a href="#top" className="flex items-center gap-1.5 font-semibold">
-            <img src="/icon.png" alt="" width={18} height={18} className="rounded" />
-            Sofa
-          </a>
-          <span className="text-ink-faint">Chrome extension</span>
-          <a href={LINKS.repo} className="ml-auto hidden items-center gap-1.5 text-ink-soft transition hover:text-ink sm:flex">
-            <GitHubIcon className="h-3.5 w-3.5" />
-            GitHub
-          </a>
-          <span className="ml-auto sm:ml-4">
-            <InstallButton />
-          </span>
-        </nav>
-      </header>
+      <Nav />
 
       <main id="top" className="mx-auto max-w-[1120px] px-5 pb-24">
         <section className="mx-auto max-w-[460px] pt-16 pb-10 sm:pt-24">
@@ -124,28 +111,7 @@ export function App() {
         </section>
       </main>
 
-      <footer className="mt-16 border-t border-edge pt-8">
-        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-3 px-5 text-[12px] text-ink-faint">
-          <span>&copy; 2026 Sofa. Free and open source.</span>
-          <span className="flex items-center gap-5">
-            <a href={LINKS.repo} className="transition hover:text-ink">Source</a>
-            <a href={LINKS.issues} className="transition hover:text-ink">Report a bug</a>
-            <a href={LINKS.author} className="transition hover:text-ink">rousan</a>
-          </span>
-        </div>
-
-        {/*
-          The name at the size the page can afford to give it. Monospace makes
-          the fit exact rather than guessed: every glyph is 0.6em wide, so four
-          of them fill the column at a twentieth under half its width. The
-          descender space is cropped so the word sits on the bottom edge.
-        */}
-        <div className="mx-auto mt-10 max-w-[1120px] overflow-hidden px-5" aria-hidden="true">
-          <p className="-mb-[0.2em] select-none text-[min(39vw,438px)] font-bold leading-none tracking-[-0.05em] text-ink/10">
-            sofa
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </>
   );
 }

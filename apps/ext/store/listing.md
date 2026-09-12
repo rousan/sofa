@@ -60,7 +60,15 @@ Developer Tools
   Nothing is granted until the user types a host and accepts Chrome's prompt,
   and the popup refuses a wildcard host.
 
+## Item identity
+
+- Extension ID: `pmjgcefgjbpbiikghomjoickjeibpnon`
+- Listing: https://chromewebstore.google.com/detail/sofa/pmjgcefgjbpbiikghomjoickjeibpnon
+- Privacy policy: https://sofa.rousanali.com/privacy/
+
 ## Data usage
+
+Tick nothing in the data collection list, and all three certifications.
 
 Sofa collects no user data. Nothing is sent anywhere: every request goes to the
 forge the user is already using, with their existing session, and the results
@@ -68,10 +76,30 @@ stay in the tab. No analytics, no remote code, no server of its own. The only
 thing stored is which files you have marked viewed, in the browser's own
 storage, per pull request.
 
+## Test instructions
+
+No credentials are needed; the reviewer's own GitHub session is enough, and a
+signed-out session works on a public pull request.
+
+    No login or test account is required.
+
+    1. Install the extension and open any GitHub pull request, for example
+       https://github.com/react/react-native/pull/58486/files
+    2. A "Sofa" tab appears next to "Files changed". Click it.
+    3. The pull request's files are listed on the left. Click one; the whole
+       file is rendered on the right with the diff in place.
+    4. Optional, for the host permission: click the Sofa toolbar icon, enter a
+       GitHub Enterprise hostname, and accept Chrome's prompt. The extension
+       then works on pull requests there too. Remove it from the same popup.
+
+    Nothing is sent anywhere: every request goes to the GitHub host the tab is
+    already on, using the browser's existing session.
+
 ## Visibility
 
-Unlisted is the sensible default: the extension gets a stable id that an IT
-department can allowlist, without appearing in store search.
+Public is fine for a free developer tool. Unlisted is the alternative if you
+would rather it not appear in store search while keeping a stable id for an IT
+department to allowlist.
 
 ## Assets
 
