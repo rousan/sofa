@@ -24,7 +24,7 @@ export const LINKS = {
  */
 export const HERO = {
   eyebrow: 'Chrome extension for code review',
-  headline: 'Review pull requests with the whole file in front of you',
+  headline: 'Review pull requests at your comfort',
   subhead:
     'GitHub shows you three lines around a change. Sofa shows you the file. A tab next to '
     + 'Files changed, a real file tree, and every diff read in context.',

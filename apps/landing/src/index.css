@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /*
- * Tailwind 4 keeps the theme in the stylesheet. These tokens are the site's
- * whole palette, and each one has a dark counterpart below so the page follows
- * the reader's system preference without a toggle.
+ * Tailwind 4 keeps the theme in the stylesheet, so these tokens are the site's
+ * whole palette. The page is light regardless of the reader's system setting:
+ * the product shot it is built around is a light screenshot, and a dark page
+ * around it made the screenshot look like a hole cut in the layout.
  */
 @theme {
   --color-ink: #1f2328;
@@ -17,22 +18,8 @@
   --color-minus: #cf222e;
 }
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-ink: #f0f6fc;
-    --color-ink-soft: #9198a1;
-    --color-surface: #0d1117;
-    --color-surface-soft: #151b23;
-    --color-edge: #3d444d;
-    --color-brand: #7c6cff;
-    --color-brand-soft: #a6a0ff;
-    --color-plus: #3fb950;
-    --color-minus: #f85149;
-  }
-}
-
 html {
-  color-scheme: light dark;
+  color-scheme: light;
   scroll-behavior: smooth;
 }
 
