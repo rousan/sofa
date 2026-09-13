@@ -60,6 +60,10 @@ Developer Tools
   Nothing is granted until the user types a host and accepts Chrome's prompt,
   and the popup refuses a wildcard host.
 
+## Status
+
+Published and public since 13 September 2026.
+
 ## Item identity
 
 - Extension ID: `pmjgcefgjbpbiikghomjoickjeibpnon`
