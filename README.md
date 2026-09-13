@@ -1,6 +1,7 @@
 # sofa
 
 Agentic PR reviews at your comfort. [sofa.rousanali.com](https://sofa.rousanali.com)
+· [Chrome Web Store](https://chromewebstore.google.com/detail/sofa/pmjgcefgjbpbiikghomjoickjeibpnon)
 
 Sofa is a Chrome extension that adds a **Sofa** tab next to *Files changed* on any
 GitHub pull request and reviews it the way an editor would: file tree on the left,
@@ -17,6 +18,12 @@ lines highlighted and removed lines interleaved where they used to be.
 
 ## Install
 
+[**Add Sofa to Chrome**](https://chromewebstore.google.com/detail/sofa/pmjgcefgjbpbiikghomjoickjeibpnon)
+— free, on the Chrome Web Store. Then open any pull request and click the
+**Sofa** tab.
+
+To run your own build instead:
+
 ```bash
 pnpm install
 pnpm build
@@ -24,7 +31,7 @@ pnpm build
 
 Then in Chrome: `chrome://extensions` → enable **Developer mode** → **Load
 unpacked** → pick the **`apps/ext/dist/`** folder (the build writes a
-self-contained manifest there). Open any pull request and click the **Sofa** tab.
+self-contained manifest there).
 
 `pnpm --filter @sofa/ext watch` rebuilds on change; hit the reload icon on the extension card and
 refresh the pull request to pick a rebuild up.

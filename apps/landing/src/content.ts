@@ -8,12 +8,12 @@
 /**
  * Where the extension lives.
  *
- * `store` is the Chrome Web Store listing. Until the listing is approved it is
- * null, and every call to action falls back to the repository, so the page
- * never offers a link that does not work.
+ * `store` is the Chrome Web Store listing. Setting it to null falls every call
+ * to action back to the repository, which is what the page did before the
+ * listing was approved.
  */
 export const LINKS = {
-  store: null as string | null,
+  store: 'https://chromewebstore.google.com/detail/sofa/pmjgcefgjbpbiikghomjoickjeibpnon' as string | null,
   repo: 'https://github.com/rousan/sofa',
   issues: 'https://github.com/rousan/sofa/issues',
   author: 'https://github.com/rousan',
