@@ -57,6 +57,10 @@ export const HOW_IT_WORKS: SpecRow[] = [
     detail: 'Sits beside Files changed. Conversation, Commits and Checks keep working; closing it hands the page back to GitHub.',
   },
   {
+    term: 'Comments in place',
+    detail: 'Existing review comments appear under the line they were written against, threaded, with replies.',
+  },
+  {
     term: 'Instant',
     detail: 'Every file is fetched the moment the diff loads, so clicking one in the tree opens it in milliseconds.',
   },
@@ -73,7 +77,7 @@ export const REQUIREMENTS: SpecRow[] = [
   { term: 'Browser', detail: 'Chrome, or any Chromium browser that takes Manifest V3 extensions.' },
   { term: 'GitHub', detail: 'github.com out of the box. Private repositories included, using the session you already have.' },
   { term: 'Enterprise', detail: 'Click the toolbar icon, type your company GitHub hostname, accept the Chrome prompt. Once, per host.' },
-  { term: 'Account', detail: 'None. No sign-in, no token to create, no OAuth app to authorise.' },
+  { term: 'Account', detail: 'None for reading diffs. Review comments on a private repository need a token you paste into the popup; public ones need nothing.' },
 ];
 
 /**

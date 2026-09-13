@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Sofa",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Agentic PR reviews at your comfort. Adds a Sofa tab to GitHub pull requests: file tree on the left, whole-file diffs on the right.",
   "host_permissions": [
     "*://github.com/*",
     "*://raw.githubusercontent.com/*",
-    "*://patch-diff.githubusercontent.com/*"
+    "*://patch-diff.githubusercontent.com/*",
+    "https://api.github.com/*"
   ],
   "content_scripts": [
     {
@@ -35,7 +36,8 @@
     }
   ],
   "permissions": [
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "optional_host_permissions": [
     "*://*/*"

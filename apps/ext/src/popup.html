@@ -39,6 +39,40 @@
         font-size: 14px;
       }
 
+      h2 {
+        margin: 16px 0 2px;
+        font-size: 13px;
+      }
+
+      .hint {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      .token-row {
+        display: block;
+        padding: 6px 0;
+      }
+
+      .token-row .host {
+        display: block;
+        margin-bottom: 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .token-row input {
+        width: 100%;
+        margin-bottom: 6px;
+      }
+
+      .token-row button {
+        width: 100%;
+      }
+
       p {
         margin: 0 0 12px;
         color: var(--muted);
@@ -130,6 +164,13 @@
     </form>
     <div id="error" class="error" hidden></div>
     <ul id="host-list"></ul>
+
+    <h2>Review comments</h2>
+    <p class="hint">
+      Optional. A token lets Sofa show a pull request's review comments inline; the
+      diff itself needs none. Use a fine-grained token with Pull requests: Read.
+    </p>
+    <ul id="token-list"></ul>
     <script src="popup.js"></script>
   </body>
 </html>

@@ -86,6 +86,10 @@ The other route is to ask IT to allowlist the extension id, which needs a pinned
 - **Syntax highlighting** for the common languages. Every colour and font comes
   from GitHub's own Primer CSS variables, so light, dark, dimmed and high-contrast
   themes are followed with no theme code of Sofa's own.
+- **Review comments in place**: existing threads appear under the line they were
+  written against, with replies. Public repositories need nothing; a private one
+  needs a token pasted into the popup, because the forge serves comments from its
+  API rather than the session.
 - **Viewed** checkboxes, remembered per pull request.
 - Added, deleted, renamed and binary files all handled; a file whose full text
   cannot be fetched falls back to plain hunks with a note saying so.

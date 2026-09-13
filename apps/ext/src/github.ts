@@ -10,8 +10,8 @@
  *   - `<pull-request>.diff`   the whole pull request as one unified diff
  *   - `/raw/<sha>/<path>`     the full text of one file at the head commit
  */
-import { parseUnifiedDiff } from '@sofa/core';
-import type { DiffFile, PrContext } from '@sofa/core';
+import { buildThreads, parseReviewComments, parseUnifiedDiff } from '@sofa/core';
+import type { DiffFile, PrContext, ReviewThread } from '@sofa/core';
 
 /**
  * Cache of fetched file text, keyed by commit sha and path.
@@ -317,6 +317,42 @@ export async function fetchFileAtSha(ctx: PrContext, sha: string | null, path: s
 
   inFlight.set(key, request);
   return request;
+}
+
+/**
+ * Fetch the pull request's review comments, threaded.
+ *
+ * This is the one thing Sofa cannot do with the browser session alone: the
+ * forge serves comments from its API, which takes a token rather than a cookie.
+ * The token lives in the extension, so the request is made by the service
+ * worker and this only asks for a path.
+ *
+ * @param ctx - The pull request being reviewed.
+ * @returns The threads, or an explanation of why there are none.
+ */
+export async function fetchReviewThreads(
+  ctx: PrContext,
+): Promise<{ threads: ReviewThread[]; error: string | null }> {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+    return { threads: [], error: null };
+  }
+
+  try {
+    const reply = await chrome.runtime.sendMessage({
+      kind: 'sofa:api',
+      path: `/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}/comments?per_page=100`,
+    }) as { ok?: boolean; body?: unknown; error?: string; status?: number } | undefined;
+
+    if (!reply?.ok) {
+      // Wanting a token is the ordinary case for a private repository, and the
+      // panel says so once rather than treating it as a failure.
+      if (reply?.error === 'needs-token') return { threads: [], error: 'needs-token' };
+      return { threads: [], error: reply?.error ?? 'could not load comments' };
+    }
+    return { threads: buildThreads(parseReviewComments(reply.body)), error: null };
+  } catch (err) {
+    return { threads: [], error: err instanceof Error ? err.message : 'could not load comments' };
+  }
 }
 
 /**

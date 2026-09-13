@@ -6,10 +6,18 @@
  * because a real source file routinely runs to thousands of lines and the
  * difference is between an instant file switch and a visible stall.
  */
-import { escapeHtml, formatCount, highlightLine, languageFor, newHighlightState } from '@sofa/core';
+import {
+  escapeHtml,
+  formatCount,
+  highlightLine,
+  indexThreadsForFile,
+  languageFor,
+  newHighlightState,
+  rowKey,
+} from '@sofa/core';
 import { el } from '../util.ts';
 import { blobUrl } from '../github.ts';
-import type { DiffFile, FileModel, PrContext, Row, ViewMode } from '@sofa/core';
+import type { DiffFile, FileModel, PrContext, ReviewThread, Row, ViewMode } from '@sofa/core';
 
 /**
  * Above this many rows the viewer refuses to lay out the whole file and shows
@@ -42,6 +50,8 @@ export interface ViewerOptions {
   onToggleViewed: (path: string, isViewed: boolean) => void;
   /** Called when the whole-file toggle is used. */
   onModeChange: (mode: ViewMode) => void;
+  /** Review threads for the whole pull request, filtered here to this file. */
+  threads: ReviewThread[];
 }
 
 /**
@@ -87,10 +97,11 @@ function visibleIndexes(rows: Row[], mode: ViewMode): Set<number> | null {
  * @param mode - Either whole file or changes only.
  * @returns The rows' HTML.
  */
-function renderRows(rows: Row[], path: string, mode: ViewMode): string {
+function renderRows(rows: Row[], path: string, mode: ViewMode, threads: ReviewThread[]): string {
   const lang = languageFor(path);
   const state = newHighlightState();
   const keep = visibleIndexes(rows, mode);
+  const { byRow } = indexThreadsForFile(threads, path);
   const parts: string[] = [];
   let skipping = false;
 
@@ -119,9 +130,64 @@ function renderRows(rows: Row[], path: string, mode: ViewMode): string {
         + `<span class="sofa-code">${code}</span>`
         + '</div>',
     );
+
+    // A comment belongs under the line it was written against, whichever side
+    // of the diff that line is on.
+    const here = [
+      ...(row.newNo !== null ? byRow.get(rowKey('RIGHT', row.newNo)) ?? [] : []),
+      ...(row.oldNo !== null && row.kind === 'del' ? byRow.get(rowKey('LEFT', row.oldNo)) ?? [] : []),
+    ];
+    for (const thread of here) parts.push(renderThread(thread));
   });
 
   return parts.join('');
+}
+
+/**
+ * Format a timestamp as something a reader can place at a glance.
+ *
+ * @param iso - An ISO timestamp from the forge.
+ * @returns A short local date, or an empty string if it cannot be read.
+ */
+function shortDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Render one review thread as it appears under its line.
+ *
+ * The bodies are Markdown as written. They are escaped and shown as-is rather
+ * than rendered: a half-implemented Markdown renderer would misrepresent what
+ * someone actually said, and getting that wrong in a code review is worse than
+ * showing the source.
+ *
+ * @param thread - The thread to render.
+ * @returns The thread's markup.
+ */
+function renderThread(thread: ReviewThread): string {
+  const comments = thread.comments
+    .map((comment) => (
+      '<div class="sofa-comment">'
+      + '<div class="sofa-comment-head">'
+      + `<span class="sofa-comment-author">${escapeHtml(comment.author)}</span>`
+      + `<span class="sofa-comment-date">${escapeHtml(shortDate(comment.createdAt))}</span>`
+      + (comment.url
+        ? `<a class="sofa-comment-link" href="${escapeHtml(comment.url)}" target="_blank" rel="noreferrer">open</a>`
+        : '')
+      + '</div>'
+      + `<div class="sofa-comment-body">${escapeHtml(comment.body)}</div>`
+      + '</div>'
+    ))
+    .join('');
+
+  const count = thread.comments.length;
+  const label = count === 1 ? '1 comment' : `${count} comments`;
+  return '<div class="sofa-thread">'
+    + `<div class="sofa-thread-head">${label}${thread.outdated ? ' · outdated' : ''}</div>`
+    + comments
+    + '</div>';
 }
 
 /**
@@ -214,13 +280,22 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
     }));
   }
 
+  const { detached } = indexThreadsForFile(options.threads, file.path);
+  if (detached.length) {
+    header.appendChild(el('div', {
+      className: 'sofa-file-note',
+      text: `${detached.length} comment thread${detached.length === 1 ? '' : 's'} on code that has since changed; `
+        + 'open the file on GitHub to read them in place.',
+    }));
+  }
+
   const body = el('div', { className: 'sofa-file-body' });
   if (model.mode === 'binary') {
     body.appendChild(el('p', { className: 'sofa-empty', text: 'Binary file not shown.' }));
   } else if (!model.rows.length) {
     body.appendChild(el('p', { className: 'sofa-empty', text: 'No textual changes in this file.' }));
   } else {
-    body.innerHTML = renderRows(model.rows, file.path, mode);
+    body.innerHTML = renderRows(model.rows, file.path, mode, options.threads);
   }
 
   mount.textContent = '';

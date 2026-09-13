@@ -55,6 +55,12 @@ Developer Tools
   full text of a file at a commit, which is what Sofa renders the diff into.
 - **scripting** - to register the content script for a GitHub Enterprise host
   the user adds after installation, which cannot be listed in the manifest.
+- **storage** - to keep the user's optional API token and their host grants in
+  the extension rather than in the page, where any script on the origin could
+  read them.
+- **host_permissions: api.github.com** - where a pull request's review comments
+  are read from. GitHub serves those from its API, which takes a token rather
+  than the browser session, so they cannot be read the way the diff is.
 - **optional_host_permissions: all sites** - so a user can point Sofa at their
   own GitHub Enterprise hostname, which is private and unknowable at build time.
   Nothing is granted until the user types a host and accepts Chrome's prompt,
@@ -63,6 +69,9 @@ Developer Tools
 ## Status
 
 Published and public since 13 September 2026.
+
+Version 0.3.0 adds review comments, which changes the permissions, so it needs a
+fresh review: `storage` and `https://api.github.com/*` are both new.
 
 ## Item identity
 

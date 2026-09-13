@@ -22,7 +22,7 @@ export interface PolicySection {
 /**
  * When this version of the policy took effect.
  */
-export const EFFECTIVE_DATE = '12 September 2026';
+export const EFFECTIVE_DATE = '13 September 2026';
 
 /**
  * The policy itself.
@@ -53,6 +53,22 @@ export const POLICY: PolicySection[] = [
       'Which files you have marked as viewed, per pull request, in the browser’s local storage.',
       'The width you dragged the file tree to.',
       'The hosts you have granted, which Chrome itself stores as extension permissions.',
+      'A forge API token, if you chose to add one, in the extension’s storage.',
+    ],
+  },
+  {
+    title: 'Review comments, and the token they need',
+    paragraphs: [
+      'Sofa can show a pull request’s existing review comments beside the code they were written '
+      + 'against. Those come from the forge’s API, which takes a token rather than the browser '
+      + 'session, so this part is optional and off until you set it up.',
+      'If you add a token in the extension’s popup, it is stored in the extension’s own storage, '
+      + 'scoped to the host you entered it for. It is sent to that forge’s API and nowhere else, as '
+      + 'the Authorization header on requests for that pull request’s comments. It is never exposed '
+      + 'to the page, never logged, and never leaves your browser in any other direction. Clearing '
+      + 'the field removes it.',
+      'For a public repository no token is needed: the comments are public, and Sofa asks for them '
+      + 'without one.',
     ],
   },
   {
@@ -71,6 +87,8 @@ export const POLICY: PolicySection[] = [
     paragraphs: ['Chrome shows these at install; this is what each is for.'],
     points: [
       'github.com, raw.githubusercontent.com and patch-diff.githubusercontent.com: the pages Sofa runs on, and the two hosts GitHub redirects diffs and file contents to.',
+      'api.github.com: where review comments are read from, when you have asked for them.',
+      'storage: to keep your token and your host grants, in the extension rather than in the page.',
       'Optional access to a site you name: so you can point Sofa at your own GitHub Enterprise server. Nothing is granted until you type a hostname and accept Chrome’s prompt, and you can revoke it from the same popup.',
       'scripting: to register Sofa on a host you added after installing, which cannot be listed in the package.',
     ],

@@ -11,7 +11,7 @@ import { el, loadViewed, readSetting, saveViewed, writeSetting } from '../util.t
 import { buildTree, flattenPaths, renderTree } from './tree.ts';
 import { renderFile } from './viewer.ts';
 import * as forge from '../github.ts';
-import type { DiffFile, FileModel, PrContext, ViewMode } from '@sofa/core';
+import type { DiffFile, FileModel, PrContext, ReviewThread, ViewMode } from '@sofa/core';
 import type { ViewerHandle } from './viewer.ts';
 
 /**
@@ -295,6 +295,8 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   // Whether the head sha has been checked against its authoritative source,
   // which only happens once, and only if a file turns out not to match.
   let headShaConfirmed = false;
+  // Review threads for the whole pull request, fetched once alongside the diff.
+  let threads: ReviewThread[] = [];
   // Bumped whenever the diff is reloaded, so an in-flight prefetch for the old
   // revision stops instead of filling the cache with stale text.
   let prefetchToken = 0;
@@ -500,6 +502,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       ctx,
       headSha,
       mode,
+      threads,
       isViewed: viewed.has(path),
       onToggleViewed: (target, isViewed) => {
         if (isViewed) viewed.add(target);
@@ -577,6 +580,17 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       if (!nextSha) setBanner('Could not determine the head commit, so files are shown as diff hunks only.');
       renderSidebar();
       panel.onFileCount?.(files.length);
+
+      void forge.fetchReviewThreads(ctx).then((result) => {
+        threads = result.threads;
+        if (result.error === 'needs-token') {
+          setBanner('Add a GitHub token in the Sofa toolbar popup to see review comments here.');
+        } else if (result.error) {
+          setBanner(`Could not load review comments: ${result.error}`);
+        }
+        // Re-render the open file so its comments appear without a click.
+        if (selectedPath && threads.length) void selectFile(selectedPath);
+      });
       const first = files[0];
       if (first) await selectFile(first.path);
       else setViewerMessage('This pull request has no file changes.');

@@ -8,6 +8,7 @@
  * when it is revoked.
  */
 import { SCRIPT_ID_PREFIX, grantedHosts } from './permissions.ts';
+import { apiBase, tokenFor } from './tokens.ts';
 
 /**
  * The registration id used for one origin.
@@ -103,12 +104,70 @@ async function fetchForContentScript(
   }
 }
 
+/**
+ * Call the forge's API on behalf of a content script.
+ *
+ * The token is attached here and never leaves the extension: the content script
+ * asks for a path, not for a credential. The host comes from the sender, so a
+ * page can only ever reach the API of the forge it is itself served from.
+ *
+ * @param path - An API path such as `/repos/o/r/pulls/1/comments`.
+ * @param sender - Who asked, which decides both the host and the token.
+ * @returns The parsed body, or an error the caller can show.
+ */
+async function callApi(
+  path: string,
+  sender: chrome.runtime.MessageSender,
+): Promise<{ ok: boolean; status: number; body: unknown; error?: string }> {
+  const origin = sender.origin ?? (sender.url ? new URL(sender.url).origin : null);
+  if (!origin) return { ok: false, status: 0, body: null, error: 'unknown sender' };
+
+  const host = new URL(origin).hostname;
+  const token = await tokenFor(host);
+
+  // A token is only needed for what the reader cannot already see: a public
+  // repository's comments are public, so an unauthenticated call is tried and
+  // costs the user no setup at all.
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const response = await fetch(`${apiBase(host)}${path}`, { headers });
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: response.ok ? await response.json() : null,
+      // 401 and 404 both mean "not without a token" here: the forge hides a
+      // private repository rather than admitting it exists.
+      error: response.ok
+        ? undefined
+        : response.status === 401 || response.status === 403 || response.status === 404
+          ? 'needs-token'
+          : `${response.status} ${response.statusText}`.trim(),
+    };
+  } catch (err) {
+    return { ok: false, status: 0, body: null, error: err instanceof Error ? err.message : 'failed' };
+  }
+}
+
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  const request = message as { kind?: string; url?: string } | undefined;
-  if (request?.kind !== 'sofa:fetch' || typeof request.url !== 'string') return undefined;
-  void fetchForContentScript(request.url, sender).then(sendResponse);
-  // Keeps the message channel open for the asynchronous reply.
-  return true;
+  const request = message as { kind?: string; url?: string; path?: string } | undefined;
+
+  if (request?.kind === 'sofa:fetch' && typeof request.url === 'string') {
+    void fetchForContentScript(request.url, sender).then(sendResponse);
+    // Keeps the message channel open for the asynchronous reply.
+    return true;
+  }
+
+  if (request?.kind === 'sofa:api' && typeof request.path === 'string') {
+    void callApi(request.path, sender).then(sendResponse);
+    return true;
+  }
+
+  return undefined;
 });
 
 chrome.runtime.onInstalled.addListener(() => void syncRegistrations());

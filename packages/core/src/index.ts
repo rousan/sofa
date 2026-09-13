@@ -23,3 +23,11 @@ export { buildFileModel, mergeFullFile, rowsFromHunks, findChangeAnchors } from 
 export { highlightLine, languageFor, newHighlightState } from './highlight.ts';
 export type { HighlightState, Language } from './highlight.ts';
 export { escapeHtml, formatCount, splitLines, debounce } from './text.ts';
+
+export {
+  parseReviewComments,
+  buildThreads,
+  indexThreadsForFile,
+  rowKey,
+} from './review.ts';
+export type { DiffSide, ReviewComment, ReviewThread } from './review.ts';

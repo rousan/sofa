@@ -620,3 +620,66 @@ html[data-color-mode="dark"] .sofa-root {
 .sofa-t-n {
   color: var(--sofa-token-number);
 }
+
+/*
+ * Review threads, shown under the line they were written against. They are
+ * deliberately not styled like code: a comment is someone talking, and it
+ * should read as prose interrupting the file rather than as another row.
+ */
+.sofa-thread {
+  margin: 4px 0 4px 104px;
+  max-width: 760px;
+  border: 1px solid var(--sofa-border);
+  border-radius: 6px;
+  background: var(--sofa-bg-muted);
+  font-family: var(--sofa-font);
+  font-size: 12px;
+}
+
+.sofa-thread-head {
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--sofa-border);
+  color: var(--sofa-text-muted);
+  font-size: 11px;
+}
+
+.sofa-comment {
+  padding: 8px 12px;
+}
+
+.sofa-comment + .sofa-comment {
+  border-top: 1px solid var(--sofa-border-muted);
+}
+
+.sofa-comment-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.sofa-comment-author {
+  font-weight: 600;
+}
+
+.sofa-comment-date,
+.sofa-comment-link {
+  color: var(--sofa-text-muted);
+  font-size: 11px;
+}
+
+.sofa-comment-link {
+  margin-left: auto;
+  text-decoration: none;
+}
+
+.sofa-comment-link:hover {
+  color: var(--sofa-accent);
+  text-decoration: underline;
+}
+
+.sofa-comment-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
