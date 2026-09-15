@@ -12,6 +12,10 @@ Max 132 characters; this one is 119.
 
     Review GitHub pull requests like an editor: file tree on the left, whole files with the diff spliced in on the right.
 
+## Support site
+
+    https://github.com/rousan/sofa/issues
+
 ## Detailed description
 
     GitHub shows a diff as a handful of hunks with three lines of context. When
@@ -34,6 +38,8 @@ Max 132 characters; this one is 119.
     Sofa reads the pages you already have open, using the session you are
     already signed in with. It collects nothing, stores nothing remotely, and
     talks to no server of its own.
+
+    Open source - https://github.com/rousan/sofa
 
 ## Category
 
@@ -65,6 +71,21 @@ Developer Tools
   own GitHub Enterprise hostname, which is private and unknowable at build time.
   Nothing is granted until the user types a host and accepts Chrome's prompt,
   and the popup refuses a wildcard host.
+
+## Security review (ThoughtSpot IT, 15 September 2026)
+
+Approved for the corporate allowlist, automated risk score 29/100 (Low), with
+four conditions:
+
+1. Verify the publisher domain in the Web Store dashboard, which clears the
+   "Unknown Developer" label.
+2. Name the source in the listing description, and set the support site to the
+   repository's issues.
+3. Ship a SECURITY.md with a contact for vulnerability reports. Done, at the
+   root of the repository.
+4. **Any permission change, new host access or major feature must go back to IT
+   security before it is published.** Version 0.3.0 adds `storage` and
+   `api.github.com`, so it needs that sign-off before submission, not after.
 
 ## Status
 
