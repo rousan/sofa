@@ -32,6 +32,22 @@ const ICON = '<svg class="sofa-tab-icon" viewBox="0 0 16 16" width="16" height="
 let lastUrl = '';
 
 /**
+ * True once another copy of Sofa has been found running on this page.
+ *
+ * Two copies is not hypothetical: anyone developing the extension has an
+ * unpacked build loaded beside the published one. Both would inject a tab, both
+ * would hide GitHub's content to make room, and only one of them would own the
+ * tab being clicked, which looks exactly like the extension being broken. The
+ * second copy to arrive does nothing at all.
+ */
+let standDown = false;
+
+/**
+ * Whether this copy is the one that injected the tab on this page.
+ */
+let ownsTab = false;
+
+/**
  * The class names GitHub adds to whichever tab is selected, worked out by
  * diffing the selected tab's classes against an unselected one. Copying them
  * is what makes the Sofa tab look selected exactly like a native tab does,
@@ -198,7 +214,11 @@ function open(ctx: PrContext): void {
  */
 function ensureTab(ctx: PrContext): Element | null {
   const existing = document.querySelector(`[${TAB_FLAG}]`);
-  if (existing) return existing;
+  if (existing) {
+    // Someone else's tab: another copy of Sofa is already running here.
+    if (!ownsTab) standDown = true;
+    return existing;
+  }
 
   const filesTab = findFilesTab(ctx);
   if (!filesTab) return null;
@@ -229,10 +249,12 @@ function ensureTab(ctx: PrContext): Element | null {
     item.className = filesItem.className;
     item.appendChild(tab);
     filesItem.parentElement.insertBefore(item, filesItem.nextSibling);
+    ownsTab = true;
     return tab;
   }
   if (filesTab.parentElement) {
     filesTab.parentElement.insertBefore(tab, filesTab.nextSibling);
+    ownsTab = true;
     return tab;
   }
   return null;
@@ -242,6 +264,7 @@ function ensureTab(ctx: PrContext): Element | null {
  * Reconcile the tab and the panel with the URL the browser is showing.
  */
 function sync(): void {
+  if (standDown) return;
   const ctx = parseLocation();
   if (!ctx) {
     const stray = document.querySelector(`[${TAB_FLAG}]`);
@@ -251,7 +274,10 @@ function sync(): void {
     return;
   }
 
-  if (!ensureTab(ctx)) return;
+  // Standing down has to take effect in this same pass: the flag is set while
+  // looking for the tab, and the work that follows is exactly what must not
+  // happen twice on one page.
+  if (!ensureTab(ctx) || standDown) return;
 
   const urlChanged = lastUrl !== window.location.href;
   lastUrl = window.location.href;
