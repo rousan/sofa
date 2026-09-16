@@ -12,6 +12,7 @@ import { buildTree, flattenPaths, renderTree } from './tree.ts';
 import { renderFile } from './viewer.ts';
 import * as forge from '../github.ts';
 import type { DiffFile, FileModel, PrContext, ReviewThread, ViewMode } from '@sofa/core';
+import type { ReadError } from '../github.ts';
 import type { ViewerHandle } from './viewer.ts';
 
 /**
@@ -41,23 +42,15 @@ const PREFETCH_CONCURRENCY = 4;
  */
 export interface DiffSource {
   /**
-   * Fetch the pull request's changed files.
+   * Fetch the pull request's changed files and head commit.
    *
    * @param ctx - The pull request being reviewed.
    */
-  fetchFiles: (ctx: PrContext) => Promise<DiffFile[]>;
-  /**
-   * Resolve the pull request's head commit sha, cheaply and possibly wrongly.
-   *
-   * @param ctx - The pull request being reviewed.
-   */
-  resolveHeadSha: (ctx: PrContext) => Promise<string | null>;
-  /**
-   * Resolve the head commit sha authoritatively, at the cost of a request.
-   *
-   * @param ctx - The pull request being reviewed.
-   */
-  confirmHeadSha: (ctx: PrContext) => Promise<string | null>;
+  fetchPullRequest: (ctx: PrContext) => Promise<{
+    files: DiffFile[];
+    headSha: string | null;
+    error: ReadError | null;
+  }>;
   /**
    * Fetch one file's full text at a commit.
    *
@@ -66,6 +59,12 @@ export interface DiffSource {
    * @param path - Repository-relative path.
    */
   fetchFileAtSha: (ctx: PrContext, sha: string | null, path: string) => Promise<string | null>;
+  /**
+   * Fetch the review threads already on the pull request.
+   *
+   * @param ctx - The pull request being reviewed.
+   */
+  fetchReviewThreads: (ctx: PrContext) => Promise<{ threads: ReviewThread[]; error: ReadError | null }>;
 }
 
 /**
@@ -294,7 +293,6 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   let loaded = false;
   // Whether the head sha has been checked against its authoritative source,
   // which only happens once, and only if a file turns out not to match.
-  let headShaConfirmed = false;
   // Review threads for the whole pull request, fetched once alongside the diff.
   let threads: ReviewThread[] = [];
   // Bumped whenever the diff is reloaded, so an in-flight prefetch for the old
@@ -365,6 +363,41 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   function setBanner(message: string): void {
     banner.textContent = message;
     banner.hidden = !message;
+  }
+
+  /**
+   * Explain that a token is needed, and how to add one.
+   *
+   * This is the first thing a new user sees on a private repository, so it is
+   * an onboarding step rather than an error: it says what to create, with which
+   * two permissions, and where to put it.
+   */
+  function showTokenPrompt(): void {
+    viewerMount.textContent = '';
+    viewerMount.appendChild(el('div', {
+      className: 'sofa-onboard',
+      children: [
+        el('h2', { className: 'sofa-onboard-title', text: 'Sofa needs a token to read this pull request' }),
+        el('p', {
+          className: 'sofa-onboard-body',
+          text: 'Diffs, file contents and review comments come from this forge\u2019s API, which takes a '
+            + 'token rather than your browser session.',
+        }),
+        el('ol', {
+          className: 'sofa-onboard-steps',
+          children: [
+            el('li', { html: 'Create a fine-grained token on this forge with <strong>Pull requests: Read</strong> and <strong>Contents: Read</strong>.' }),
+            el('li', { text: 'Click the Sofa icon in the browser toolbar.' }),
+            el('li', { text: 'Paste the token beside this host and save.' }),
+          ],
+        }),
+        el('a', {
+          className: 'sofa-btn sofa-btn--primary sofa-onboard-action',
+          text: 'Create a token',
+          attrs: { href: `${ctx.origin}/settings/personal-access-tokens/new`, target: '_blank', rel: 'noreferrer' },
+        }),
+      ],
+    }));
   }
 
   /**
@@ -466,21 +499,10 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       setViewerMessage(`Loading ${path}`);
       try {
         const needsHead = !file.binary && file.status !== 'deleted';
-        let model = buildFileModel(file, needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null);
-
-        // The file did not match the diff, so the sha it was fetched at was the
-        // wrong one. Confirm the head sha against the pull request's own patch
-        // and try again before settling for a hunks-only rendering.
-        if (model.mismatch && !headShaConfirmed) {
-          headShaConfirmed = true;
-          const confirmed = await source.confirmHeadSha(ctx);
-          if (confirmed && confirmed !== headSha) {
-            headSha = confirmed;
-            // Anything cached was built against the wrong revision.
-            models.clear();
-            model = buildFileModel(file, await source.fetchFileAtSha(ctx, headSha, file.path));
-          }
-        }
+        // The sha comes from the pull request itself now, so a mismatch is no
+        // longer something to recover from by guessing again: the model reports
+        // it, and the file falls back to its hunks.
+        const model = buildFileModel(file, needsHead ? await source.fetchFileAtSha(ctx, headSha, file.path) : null);
 
         // A newer selection landed while this file was in flight.
         if (token !== loadToken) return;
@@ -574,30 +596,38 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     setViewerMessage('Loading diff');
 
     try {
-      const [nextFiles, nextSha] = await Promise.all([source.fetchFiles(ctx), source.resolveHeadSha(ctx)]);
-      files = nextFiles;
-      headSha = nextSha;
-      if (!nextSha) setBanner('Could not determine the head commit, so files are shown as diff hunks only.');
+      const result = await source.fetchPullRequest(ctx);
+      if (result.error === 'needs-token') {
+        loaded = false;
+        showTokenPrompt();
+        return;
+      }
+      if (result.error) {
+        loaded = false;
+        setBanner('Could not read this pull request from the forge. Use Reload diff to try again.');
+        viewerMount.textContent = '';
+        return;
+      }
+
+      files = result.files;
+      headSha = result.headSha;
       renderSidebar();
       panel.onFileCount?.(files.length);
 
-      void forge.fetchReviewThreads(ctx).then((result) => {
-        threads = result.threads;
-        if (result.error === 'needs-token') {
-          setBanner('Add a GitHub token in the Sofa toolbar popup to see review comments here.');
-        } else if (result.error) {
-          setBanner(`Could not load review comments: ${result.error}`);
-        }
-        // Re-render the open file so its comments appear without a click.
-        if (selectedPath && threads.length) void selectFile(selectedPath);
-      });
       const first = files[0];
       if (first) await selectFile(first.path);
       else setViewerMessage('This pull request has no file changes.');
+
       // Only once something is on screen, so the first file is never queued
       // behind the rest.
       prefetchToken++;
       void prefetchAll();
+
+      void source.fetchReviewThreads(ctx).then((comments) => {
+        threads = comments.threads;
+        // Re-render the open file so its comments appear without a click.
+        if (selectedPath && threads.length) void selectFile(selectedPath);
+      });
     } catch (err) {
       loaded = false;
       setBanner(describeLoadFailure(err));

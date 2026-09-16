@@ -5,8 +5,6 @@
   "description": "Agentic PR reviews at your comfort. Adds a Sofa tab to GitHub pull requests: file tree on the left, whole-file diffs on the right.",
   "host_permissions": [
     "*://github.com/*",
-    "*://raw.githubusercontent.com/*",
-    "*://patch-diff.githubusercontent.com/*",
     "https://api.github.com/*"
   ],
   "content_scripts": [
@@ -21,17 +19,6 @@
         "dist/sofa.css"
       ],
       "run_at": "document_end",
-      "all_frames": false
-    },
-    {
-      "matches": [
-        "*://github.com/*"
-      ],
-      "js": [
-        "dist/fetch-bridge.js"
-      ],
-      "run_at": "document_start",
-      "world": "MAIN",
       "all_frames": false
     }
   ],

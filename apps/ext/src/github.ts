@@ -1,14 +1,16 @@
 /**
- * All network and page access against the forge.
+ * Everything Sofa reads from the forge.
  *
- * Sofa deliberately avoids the REST API and personal access tokens: every
- * request here is a same-origin request that reuses the browser session, so the
- * same code works on github.com and on any GitHub Enterprise host, private
- * repositories included.
+ * All of it goes through the forge's API, with a token the user supplies. The
+ * browser session cannot be used: the API does not accept cookies, and the
+ * routes that do accept them proved unreliable in both directions. github.com
+ * redirects a pull request's diff to a host a content script may not fetch, and
+ * GitHub Enterprise redirects it to a media path that refuses anything
+ * attributed to an extension. The API has neither problem, and it knows the
+ * head commit rather than leaving it to be inferred from the page.
  *
- * Two endpoints carry everything:
- *   - `<pull-request>.diff`   the whole pull request as one unified diff
- *   - `/raw/<sha>/<path>`     the full text of one file at the head commit
+ * The token lives in the service worker, so nothing here ever handles it: this
+ * asks for a path and gets a body back.
  */
 import { buildThreads, parseReviewComments, parseUnifiedDiff } from '@sofa/core';
 import type { DiffFile, PrContext, ReviewThread } from '@sofa/core';
@@ -30,6 +32,24 @@ const fileCache = new Map<string, string | null>();
 const inFlight = new Map<string, Promise<string | null>>();
 
 /**
+ * Why a read failed, in the only terms the panel needs to tell them apart.
+ *
+ * `needs-token` is the ordinary case on a private repository with no token
+ * configured, and is answered with an explanation rather than an error.
+ */
+export type ReadError = 'needs-token' | 'failed';
+
+/**
+ * What the API gave back.
+ */
+interface ApiResult<T> {
+  /** The body, when the call succeeded. */
+  body: T | null;
+  /** Why it did not, when it failed. */
+  error: ReadError | null;
+}
+
+/**
  * Recognise a pull request URL and extract its coordinates.
  *
  * @param location - Location to parse; defaults to the current page's.
@@ -48,260 +68,25 @@ export function parseLocation(location: Location | URL = window.location): PrCon
 }
 
 /**
- * How long to wait for the page-world bridge before deciding it is not there.
- */
-const BRIDGE_TIMEOUT_MS = 4000;
-
-/**
- * Whether the page-world bridge has ever answered.
- *
- * Once it has failed to reply, later requests skip it rather than pay the
- * timeout again. The offline harness, where no bridge is injected, hits this.
- */
-let bridgeAvailable: boolean | null = null;
-
-/**
- * The reply shape the page-world bridge posts back.
- */
-interface BridgeReply {
-  /** Whether the response status was in the success range. */
-  ok: boolean;
-  /** HTTP status, or 0 when the request never completed. */
-  status: number;
-  /** HTTP status text, or a short reason when the request never completed. */
-  statusText: string;
-  /** The body, empty unless `ok`. */
-  text: string;
-}
-
-/**
- * Fetch a URL through the page-world bridge.
- *
- * @param url - Absolute, same-origin URL to fetch.
- * @returns The bridge's reply, or null when no bridge answered in time.
- */
-function fetchViaPage(url: string): Promise<BridgeReply | null> {
-  return new Promise((resolve) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const timer = setTimeout(() => {
-      window.removeEventListener('message', onMessage);
-      bridgeAvailable = false;
-      resolve(null);
-    }, BRIDGE_TIMEOUT_MS);
-
-    /**
-     * Resolve the promise when the bridge answers this particular request.
-     *
-     * @param event - A message event on the page's window.
-     */
-    function onMessage(event: MessageEvent): void {
-      if (event.source !== window || event.origin !== window.location.origin) return;
-      const data = event.data as { kind?: string; id?: string } | undefined;
-      if (!data || data.kind !== 'sofa:fetch-response' || data.id !== id) return;
-      clearTimeout(timer);
-      window.removeEventListener('message', onMessage);
-      bridgeAvailable = true;
-      resolve(data as unknown as BridgeReply);
-    }
-
-    window.addEventListener('message', onMessage);
-    window.postMessage({ kind: 'sofa:fetch-request', id, url }, window.location.origin);
-  });
-}
-
-/**
- * Fetch a URL through the extension's service worker.
- *
- * @param url - Absolute URL to fetch.
- * @returns The worker's reply, or null when there is no worker to ask.
- */
-async function fetchViaWorker(url: string): Promise<BridgeReply | null> {
-  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return null;
-  try {
-    const reply = await chrome.runtime.sendMessage({ kind: 'sofa:fetch', url });
-    return (reply as BridgeReply | undefined) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fetch a URL as text from the content script's own context.
- *
- * @param url - Absolute URL to fetch.
- * @returns The response body.
- * @throws When the response status is not ok.
- */
-async function fetchDirect(url: string): Promise<string> {
-  const response = await fetch(url, {
-    credentials: 'include',
-    headers: { Accept: 'text/plain, */*' },
-    redirect: 'follow',
-  });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim());
-  return response.text();
-}
-
-/**
- * Fetch a URL as text using the browser's forge session.
- *
- * Three routes, because no single one works everywhere:
- *
- *  - The service worker. The canonical Manifest V3 route, and the only one with
- *    a CORS exemption, which github.com needs: its `.diff` redirects to
- *    patch-diff.githubusercontent.com, and a content script's own fetch of that
- *    is rejected for a missing allow-origin header.
- *  - The page-world bridge. Needed where a forge refuses requests attributed to
- *    the extension: GitHub Enterprise redirects `.diff` to a media path that
- *    answers 403 to those while serving the identical URL to the page.
- *  - A direct fetch, which is all the offline harness has.
- *
- * @param url - Absolute URL to fetch.
- * @returns The response body.
- * @throws When no route could fetch it.
- */
-export async function fetchText(url: string): Promise<string> {
-  const viaWorker = await fetchViaWorker(url);
-  if (viaWorker?.ok) return viaWorker.text;
-
-  const sameOrigin = new URL(url, window.location.href).origin === window.location.origin;
-  const hasBridge = document.documentElement.hasAttribute('data-sofa-bridge');
-  if (sameOrigin && hasBridge && bridgeAvailable !== false) {
-    const viaPage = await fetchViaPage(url);
-    if (viaPage?.ok) return viaPage.text;
-    if (viaPage && viaWorker) {
-      // Both privileged routes answered and both refused, so the forge means it.
-      throw new Error(`${viaWorker.status || viaPage.status} ${viaWorker.statusText || viaPage.statusText}`.trim());
-    }
-  }
-
-  return fetchDirect(url);
-}
-
-/**
  * Ask the service worker to call the forge's API.
  *
- * The token lives in the worker, so this passes a path and an Accept header and
- * gets a body back. `accept` decides the shape: JSON by default, a unified diff
- * or a raw file when asked for those.
- *
  * @param path - API path, such as `/repos/o/r/pulls/1`.
- * @param accept - The media type to request.
- * @returns The body, or null when the call could not be made or was refused.
+ * @param accept - The media type to ask for: JSON by default, a unified diff or
+ *   a raw file when those are wanted.
+ * @returns The body, or the reason it could not be had.
  */
-async function api(path: string, accept?: string): Promise<unknown | null> {
-  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return null;
+async function api<T>(path: string, accept?: string): Promise<ApiResult<T>> {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+    return { body: null, error: 'failed' };
+  }
   try {
     const reply = await chrome.runtime.sendMessage({ kind: 'sofa:api', path, accept }) as
-      { ok?: boolean; body?: unknown } | undefined;
-    return reply?.ok ? reply.body ?? null : null;
+      { ok?: boolean; body?: unknown; error?: string } | undefined;
+    if (reply?.ok) return { body: (reply.body ?? null) as T | null, error: null };
+    return { body: null, error: reply?.error === 'needs-token' ? 'needs-token' : 'failed' };
   } catch {
-    return null;
+    return { body: null, error: 'failed' };
   }
-}
-
-/**
- * Fetch and parse the pull request's complete unified diff.
- *
- * @param ctx - The pull request being reviewed.
- * @returns One record per changed file.
- */
-export async function fetchFiles(ctx: PrContext): Promise<DiffFile[]> {
-  // The API is the reliable route: one request, no redirect to a media host,
-  // no content security policy in the way, and it works the same on every
-  // forge. The page route stays as a fallback for anyone without a token.
-  const viaApi = await api(`/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}`, 'application/vnd.github.diff');
-  if (typeof viaApi === 'string' && viaApi.includes('diff --git')) return parseUnifiedDiff(viaApi);
-
-  const text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/pull/${ctx.number}.diff`);
-  return parseUnifiedDiff(text);
-}
-
-/**
- * Look for the head sha in the JSON payloads the pull request page embeds.
- *
- * @returns The sha, or null when no payload carries one.
- */
-function findShaInEmbeddedData(): string | null {
-  for (const script of document.querySelectorAll('script[type="application/json"]')) {
-    const text = script.textContent ?? '';
-    const match = /"headRefOid"\s*:\s*"([0-9a-f]{40})"/.exec(text)
-      ?? /"head_sha"\s*:\s*"([0-9a-f]{40})"/.exec(text);
-    if (match?.[1]) return match[1];
-  }
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="octolytics-dimension-pull_request_head_sha"]');
-  if (meta && /^[0-9a-f]{40}$/.test(meta.content)) return meta.content;
-  return null;
-}
-
-/**
- * Look for the head sha in the repository blob links the page renders.
- *
- * The per-file "View file" link on the Files changed tab points at the head
- * commit, which makes it a reliable source on older Enterprise releases.
- *
- * @param ctx - The pull request being reviewed.
- * @returns The sha, or null when no such link is present.
- */
-function findShaInBlobLinks(ctx: PrContext): string | null {
-  const prefix = `/${ctx.owner}/${ctx.repo}/blob/`;
-  const pattern = new RegExp(`${prefix.replace(/\//g, '\\/')}([0-9a-f]{40})/`);
-  for (const link of document.querySelectorAll('a[href]')) {
-    const match = pattern.exec(link.getAttribute('href') ?? '');
-    if (match?.[1]) return match[1];
-  }
-  return null;
-}
-
-/**
- * Find the head commit sha of the pull request, cheaply.
- *
- * Both sources are free, which matters because nothing can be rendered as a
- * whole file until a sha is known. Neither is authoritative, though: a page's
- * embedded payloads vary by forge version, and a blob link can point at some
- * other commit entirely (a reviewer linking a file from a comment, say). A
- * wrong sha shows up as a file whose text does not match the diff, at which
- * point the panel asks `confirmHeadSha` for the real answer.
- *
- * @param ctx - The pull request being reviewed.
- * @returns A 40-character sha, or null when neither source had one.
- */
-export async function resolveHeadSha(ctx: PrContext): Promise<string | null> {
-  return findShaInEmbeddedData() ?? findShaInBlobLinks(ctx) ?? confirmHeadSha(ctx);
-}
-
-/**
- * Cache of the authoritative head sha, so the patch is fetched at most once.
- */
-const confirmedShas = new Map<string, string | null>();
-
-/**
- * Read the head commit sha from the pull request's own patch.
- *
- * This is the authoritative source: `.patch` lists the pull request's commits
- * oldest first, so the last one is its head. It costs a request roughly the
- * size of the diff, which is why it is only used to confirm a guess that has
- * already proved wrong.
- *
- * @param ctx - The pull request being reviewed.
- * @returns A 40-character sha, or null when the patch could not be read.
- */
-export async function confirmHeadSha(ctx: PrContext): Promise<string | null> {
-  const key = `${ctx.origin}/${ctx.owner}/${ctx.repo}#${ctx.number}`;
-  const cached = confirmedShas.get(key);
-  if (cached !== undefined) return cached;
-
-  let sha: string | null = null;
-  try {
-    const patch = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/pull/${ctx.number}.patch`);
-    const matches = patch.match(/^From ([0-9a-f]{40}) /gm);
-    const last = matches?.[matches.length - 1] ?? '';
-    sha = /([0-9a-f]{40})/.exec(last)?.[1] ?? null;
-  } catch {
-    // Leave it null: the viewer degrades to a hunks-only rendering.
-  }
-  confirmedShas.set(key, sha);
-  return sha;
 }
 
 /**
@@ -315,13 +100,44 @@ function encodePath(path: string): string {
 }
 
 /**
+ * Fetch the pull request's changed files and its head commit together.
+ *
+ * They arrive from two calls to the same endpoint, one asking for the diff and
+ * one for the metadata, so they are fetched side by side and returned as a
+ * pair: neither is useful without the other.
+ *
+ * @param ctx - The pull request being reviewed.
+ * @returns The files and head sha, or the reason they could not be read.
+ */
+export async function fetchPullRequest(
+  ctx: PrContext,
+): Promise<{ files: DiffFile[]; headSha: string | null; error: ReadError | null }> {
+  const base = `/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}`;
+  const [diff, meta] = await Promise.all([
+    api<string>(base, 'application/vnd.github.diff'),
+    api<{ head?: { sha?: unknown } }>(base),
+  ]);
+
+  if (diff.error || typeof diff.body !== 'string') {
+    return { files: [], headSha: null, error: diff.error ?? 'failed' };
+  }
+
+  const sha = meta.body?.head?.sha;
+  return {
+    files: parseUnifiedDiff(diff.body),
+    headSha: typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha) ? sha : null,
+    error: null,
+  };
+}
+
+/**
  * Fetch the full text of one file at a given commit.
  *
  * @param ctx - The pull request being reviewed.
  * @param sha - Commit sha to read the file at.
  * @param path - Repository-relative path of the file.
- * @returns The file text, or null when it is unavailable (absent at that sha,
- *   too large to serve, or a transport error).
+ * @returns The file text, or null when it is unavailable, which a deleted file,
+ *   a binary, or a token without Contents access all produce.
  */
 export async function fetchFileAtSha(ctx: PrContext, sha: string | null, path: string): Promise<string | null> {
   if (!sha) return null;
@@ -332,24 +148,11 @@ export async function fetchFileAtSha(ctx: PrContext, sha: string | null, path: s
   if (pending) return pending;
 
   const request = (async () => {
-    // The API needs Contents access, which a token scoped to pull requests
-    // alone will not have, so a failure here is ordinary and falls through.
-    const viaApi = await api(
+    const result = await api<string>(
       `/repos/${ctx.owner}/${ctx.repo}/contents/${encodePath(path)}?ref=${sha}`,
       'application/vnd.github.raw',
     );
-    if (typeof viaApi === 'string') {
-      fileCache.set(key, viaApi);
-      inFlight.delete(key);
-      return viaApi;
-    }
-
-    let text: string | null = null;
-    try {
-      text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/raw/${sha}/${encodePath(path)}`);
-    } catch {
-      text = null;
-    }
+    const text = typeof result.body === 'string' ? result.body : null;
     fileCache.set(key, text);
     inFlight.delete(key);
     return text;
@@ -362,37 +165,17 @@ export async function fetchFileAtSha(ctx: PrContext, sha: string | null, path: s
 /**
  * Fetch the pull request's review comments, threaded.
  *
- * This is the one thing Sofa cannot do with the browser session alone: the
- * forge serves comments from its API, which takes a token rather than a cookie.
- * The token lives in the extension, so the request is made by the service
- * worker and this only asks for a path.
- *
  * @param ctx - The pull request being reviewed.
- * @returns The threads, or an explanation of why there are none.
+ * @returns The threads, and the reason there are none when that is why.
  */
 export async function fetchReviewThreads(
   ctx: PrContext,
-): Promise<{ threads: ReviewThread[]; error: string | null }> {
-  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
-    return { threads: [], error: null };
-  }
-
-  try {
-    const reply = await chrome.runtime.sendMessage({
-      kind: 'sofa:api',
-      path: `/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}/comments?per_page=100`,
-    }) as { ok?: boolean; body?: unknown; error?: string; status?: number } | undefined;
-
-    if (!reply?.ok) {
-      // Wanting a token is the ordinary case for a private repository, and the
-      // panel says so once rather than treating it as a failure.
-      if (reply?.error === 'needs-token') return { threads: [], error: 'needs-token' };
-      return { threads: [], error: reply?.error ?? 'could not load comments' };
-    }
-    return { threads: buildThreads(parseReviewComments(reply.body)), error: null };
-  } catch (err) {
-    return { threads: [], error: err instanceof Error ? err.message : 'could not load comments' };
-  }
+): Promise<{ threads: ReviewThread[]; error: ReadError | null }> {
+  const result = await api<unknown>(
+    `/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}/comments?per_page=100`,
+  );
+  if (result.error) return { threads: [], error: result.error };
+  return { threads: buildThreads(parseReviewComments(result.body)), error: null };
 }
 
 /**

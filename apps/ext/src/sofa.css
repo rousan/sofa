@@ -683,3 +683,45 @@ html[data-color-mode="dark"] .sofa-root {
   overflow-wrap: anywhere;
   line-height: 1.5;
 }
+
+/*
+ * The state a new user meets on a private repository: no token yet, so nothing
+ * to render. It is onboarding rather than an error, so it says what to make,
+ * which two permissions it needs, and where to put it.
+ */
+.sofa-onboard {
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 24px;
+  border: 1px solid var(--sofa-border);
+  border-radius: 8px;
+  background: var(--sofa-bg-muted);
+}
+
+.sofa-onboard-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sofa-onboard-body {
+  margin: 0 0 16px;
+  color: var(--sofa-text-muted);
+  line-height: 1.5;
+}
+
+.sofa-onboard-steps {
+  margin: 0 0 20px;
+  padding-left: 20px;
+  color: var(--sofa-text-muted);
+  line-height: 1.7;
+}
+
+.sofa-onboard-steps strong {
+  color: var(--sofa-text);
+  font-weight: 600;
+}
+
+.sofa-onboard-action {
+  display: inline-block;
+}

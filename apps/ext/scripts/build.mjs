@@ -25,7 +25,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRIES = [
   { name: 'content', file: 'src/content.ts' },
   { name: 'background', file: 'src/background.ts' },
-  { name: 'fetch-bridge', file: 'src/fetch-bridge.ts' },
   { name: 'harness', file: 'test/harness.ts' },
 ];
 

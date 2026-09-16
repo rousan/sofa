@@ -167,8 +167,11 @@ export const headFileTexts = headFiles;
  * A `DiffSource` backed entirely by the fixture above.
  */
 export const fixtureSource: DiffSource = {
-  fetchFiles: async () => parseUnifiedDiff(diffLines.join('\n')),
-  resolveHeadSha: async () => 'f'.repeat(40),
-  confirmHeadSha: async () => 'f'.repeat(40),
+  fetchPullRequest: async () => ({
+    files: parseUnifiedDiff(diffLines.join('\n')),
+    headSha: 'f'.repeat(40),
+    error: null,
+  }),
   fetchFileAtSha: async (_ctx, _sha, path) => headFiles[path] ?? null,
+  fetchReviewThreads: async () => ({ threads: [], error: null }),
 };
