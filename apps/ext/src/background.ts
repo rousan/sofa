@@ -7,7 +7,7 @@
  * content script registration, added when permission is granted and removed
  * when it is revoked.
  */
-import { SCRIPT_ID_PREFIX, grantedHosts } from './permissions.ts';
+import { SCRIPT_ID_PREFIX, grantedHosts, hostOf } from './permissions.ts';
 import { apiBase, tokenFor } from './tokens.ts';
 
 /**
@@ -118,28 +118,43 @@ async function fetchForContentScript(
 async function callApi(
   path: string,
   sender: chrome.runtime.MessageSender,
+  accept?: string,
+  requestedHost?: string,
 ): Promise<{ ok: boolean; status: number; body: unknown; error?: string }> {
   const origin = sender.origin ?? (sender.url ? new URL(sender.url).origin : null);
   if (!origin) return { ok: false, status: 0, body: null, error: 'unknown sender' };
 
-  const host = new URL(origin).hostname;
+  // A content script's host is the page it runs on, which is the only API it
+  // may reach. The popup is an extension page with no forge of its own, so it
+  // names the host, and may only name one Sofa actually runs on.
+  let host = new URL(origin).hostname;
+  if (origin.startsWith('chrome-extension://')) {
+    const asked = typeof requestedHost === 'string' ? requestedHost : '';
+    const allowed = asked === 'github.com'
+      || (await grantedHosts()).some((pattern) => hostOf(pattern) === asked);
+    if (!allowed) return { ok: false, status: 0, body: null, error: 'host not allowed' };
+    host = asked;
+  }
   const token = await tokenFor(host);
 
   // A token is only needed for what the reader cannot already see: a public
   // repository's comments are public, so an unauthenticated call is tried and
   // costs the user no setup at all.
   const headers: Record<string, string> = {
-    Accept: 'application/vnd.github+json',
+    // The same endpoint serves JSON, a unified diff or a raw file depending on
+    // what is asked for, which is why the caller chooses.
+    Accept: accept ?? 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   try {
     const response = await fetch(`${apiBase(host)}${path}`, { headers });
+    const wantsText = Boolean(accept && !accept.includes('json'));
     return {
       ok: response.ok,
       status: response.status,
-      body: response.ok ? await response.json() : null,
+      body: response.ok ? (wantsText ? await response.text() : await response.json()) : null,
       // 401 and 404 both mean "not without a token" here: the forge hides a
       // private repository rather than admitting it exists.
       error: response.ok
@@ -154,7 +169,8 @@ async function callApi(
 }
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
-  const request = message as { kind?: string; url?: string; path?: string } | undefined;
+  const request = message as
+    { kind?: string; url?: string; path?: string; accept?: string; host?: string } | undefined;
 
   if (request?.kind === 'sofa:fetch' && typeof request.url === 'string') {
     void fetchForContentScript(request.url, sender).then(sendResponse);
@@ -163,7 +179,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   }
 
   if (request?.kind === 'sofa:api' && typeof request.path === 'string') {
-    void callApi(request.path, sender).then(sendResponse);
+    void callApi(request.path, sender, request.accept, request.host).then(sendResponse);
     return true;
   }
 

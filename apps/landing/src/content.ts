@@ -77,7 +77,7 @@ export const REQUIREMENTS: SpecRow[] = [
   { term: 'Browser', detail: 'Chrome, or any Chromium browser that takes Manifest V3 extensions.' },
   { term: 'GitHub', detail: 'github.com out of the box. Private repositories included, using the session you already have.' },
   { term: 'Enterprise', detail: 'Click the toolbar icon, type your company GitHub hostname, accept the Chrome prompt. Once, per host.' },
-  { term: 'Account', detail: 'None for reading diffs. Review comments on a private repository need a token you paste into the popup; public ones need nothing.' },
+  { term: 'Token', detail: 'A fine-grained token with Pull requests: Read and Contents: Read, pasted into the popup. That is the reliable route; public pull requests work without one.' },
 ];
 
 /**

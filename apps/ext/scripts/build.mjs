@@ -25,7 +25,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRIES = [
   { name: 'content', file: 'src/content.ts' },
   { name: 'background', file: 'src/background.ts' },
-  { name: 'popup', file: 'src/popup.ts' },
   { name: 'fetch-bridge', file: 'src/fetch-bridge.ts' },
   { name: 'harness', file: 'test/harness.ts' },
 ];
@@ -35,7 +34,6 @@ const ENTRIES = [
  */
 const ASSETS = [
   ['src/sofa.css', 'dist/sofa.css'],
-  ['src/popup.html', 'dist/popup.html'],
   ['src/icons/icon-16.png', 'dist/icons/icon-16.png'],
   ['src/icons/icon-32.png', 'dist/icons/icon-32.png'],
   ['src/icons/icon-48.png', 'dist/icons/icon-48.png'],
@@ -74,6 +72,29 @@ async function copyAssets() {
 }
 
 /**
+ * Build the popup, which is a page rather than an injected script.
+ *
+ * Relative asset paths matter here: the page is loaded from a chrome-extension
+ * URL, where an absolute path would resolve against the extension root and the
+ * browser would not find the bundle.
+ *
+ * @param watch - Whether to keep rebuilding on change.
+ * @returns {Promise<void>} Resolves when the build finishes.
+ */
+async function buildPopup(watch) {
+  await build({
+    root,
+    base: './',
+    configFile: resolve(root, 'vite.config.ts'),
+    build: {
+      watch: watch ? {} : null,
+      rollupOptions: { input: resolve(root, 'popup.html') },
+    },
+    logLevel: 'warn',
+  });
+}
+
+/**
  * Bundle one entry point as a standalone IIFE.
  *
  * @param {{name: string, file: string}} entry - What to build and what to call it.
@@ -99,6 +120,7 @@ async function bundle(entry, watch) {
 
 const watch = process.argv.includes('--watch');
 await copyAssets();
+await buildPopup(watch);
 for (const entry of ENTRIES) {
   await bundle(entry, watch);
 }

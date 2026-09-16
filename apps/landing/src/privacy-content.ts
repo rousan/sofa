@@ -57,18 +57,18 @@ export const POLICY: PolicySection[] = [
     ],
   },
   {
-    title: 'Review comments, and the token they need',
+    title: 'The token',
     paragraphs: [
-      'Sofa can show a pull request’s existing review comments beside the code they were written '
-      + 'against. Those come from the forge’s API, which takes a token rather than the browser '
-      + 'session, so this part is optional and off until you set it up.',
-      'If you add a token in the extension’s popup, it is stored in the extension’s own storage, '
-      + 'scoped to the host you entered it for. It is sent to that forge’s API and nowhere else, as '
-      + 'the Authorization header on requests for that pull request’s comments. It is never exposed '
-      + 'to the page, never logged, and never leaves your browser in any other direction. Clearing '
-      + 'the field removes it.',
-      'For a public repository no token is needed: the comments are public, and Sofa asks for them '
-      + 'without one.',
+      'Sofa reads three things through the forge’s API: the pull request’s diff, the text of each '
+      + 'changed file, and the review comments already on it. The API takes a token rather than the '
+      + 'browser session, which is why you are asked for one. It is the reliable route; where it is '
+      + 'absent, Sofa falls back to reading the pages your session can already see.',
+      'A token you add in the extension’s popup is stored in the extension’s own storage, scoped to '
+      + 'the host you entered it for. It is sent to that forge’s API and nowhere else, as the '
+      + 'Authorization header. It is never exposed to the page, never logged, and never leaves your '
+      + 'browser in any other direction. Clearing the field removes it.',
+      'The permissions it needs are the smallest that work: Pull requests: Read, and Contents: Read '
+      + 'for the file bodies. A public repository needs no token at all.',
     ],
   },
   {
@@ -87,7 +87,7 @@ export const POLICY: PolicySection[] = [
     paragraphs: ['Chrome shows these at install; this is what each is for.'],
     points: [
       'github.com, raw.githubusercontent.com and patch-diff.githubusercontent.com: the pages Sofa runs on, and the two hosts GitHub redirects diffs and file contents to.',
-      'api.github.com: where review comments are read from, when you have asked for them.',
+      'api.github.com: where the diff, the file contents and the review comments are read from when you have added a token.',
       'storage: to keep your token and your host grants, in the extension rather than in the page.',
       'Optional access to a site you name: so you can point Sofa at your own GitHub Enterprise server. Nothing is granted until you type a hostname and accept Chrome’s prompt, and you can revoke it from the same popup.',
       'scripting: to register Sofa on a host you added after installing, which cannot be listed in the package.',

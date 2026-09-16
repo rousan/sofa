@@ -64,9 +64,10 @@ Developer Tools
 - **storage** - to keep the user's optional API token and their host grants in
   the extension rather than in the page, where any script on the origin could
   read them.
-- **host_permissions: api.github.com** - where a pull request's review comments
-  are read from. GitHub serves those from its API, which takes a token rather
-  than the browser session, so they cannot be read the way the diff is.
+- **host_permissions: api.github.com** - where the pull request's diff, its file
+  contents and its review comments are read from. The API takes a token rather
+  than the browser session, and it is the route that works reliably across
+  github.com and Enterprise; the session route remains as a fallback.
 - **optional_host_permissions: all sites** - so a user can point Sofa at their
   own GitHub Enterprise hostname, which is private and unknowable at build time.
   Nothing is granted until the user types a host and accepts Chrome's prompt,

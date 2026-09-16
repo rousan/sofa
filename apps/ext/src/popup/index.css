@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/*
+ * The popup's palette. It is its own document rather than part of a forge page,
+ * so it follows the browser's light or dark setting instead of GitHub's theme.
+ */
+@theme {
+  --color-ink: #16181d;
+  --color-ink-soft: #5b6270;
+  --color-ink-faint: #8b93a1;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f6f7f9;
+  --color-edge: #e3e6ea;
+  --color-brand: #4b3dd6;
+  --color-ok: #1a7f37;
+  --color-bad: #cf222e;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-ink: #e8eaed;
+    --color-ink-soft: #9aa2b1;
+    --color-ink-faint: #6b7280;
+    --color-surface: #16181d;
+    --color-surface-soft: #1d2026;
+    --color-edge: #2c313a;
+    --color-brand: #8b7dff;
+    --color-ok: #3fb950;
+    --color-bad: #f85149;
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  width: 360px;
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+}

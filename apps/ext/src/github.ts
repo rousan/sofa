@@ -179,12 +179,40 @@ export async function fetchText(url: string): Promise<string> {
 }
 
 /**
+ * Ask the service worker to call the forge's API.
+ *
+ * The token lives in the worker, so this passes a path and an Accept header and
+ * gets a body back. `accept` decides the shape: JSON by default, a unified diff
+ * or a raw file when asked for those.
+ *
+ * @param path - API path, such as `/repos/o/r/pulls/1`.
+ * @param accept - The media type to request.
+ * @returns The body, or null when the call could not be made or was refused.
+ */
+async function api(path: string, accept?: string): Promise<unknown | null> {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return null;
+  try {
+    const reply = await chrome.runtime.sendMessage({ kind: 'sofa:api', path, accept }) as
+      { ok?: boolean; body?: unknown } | undefined;
+    return reply?.ok ? reply.body ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch and parse the pull request's complete unified diff.
  *
  * @param ctx - The pull request being reviewed.
  * @returns One record per changed file.
  */
 export async function fetchFiles(ctx: PrContext): Promise<DiffFile[]> {
+  // The API is the reliable route: one request, no redirect to a media host,
+  // no content security policy in the way, and it works the same on every
+  // forge. The page route stays as a fallback for anyone without a token.
+  const viaApi = await api(`/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}`, 'application/vnd.github.diff');
+  if (typeof viaApi === 'string' && viaApi.includes('diff --git')) return parseUnifiedDiff(viaApi);
+
   const text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/pull/${ctx.number}.diff`);
   return parseUnifiedDiff(text);
 }
@@ -304,6 +332,18 @@ export async function fetchFileAtSha(ctx: PrContext, sha: string | null, path: s
   if (pending) return pending;
 
   const request = (async () => {
+    // The API needs Contents access, which a token scoped to pull requests
+    // alone will not have, so a failure here is ordinary and falls through.
+    const viaApi = await api(
+      `/repos/${ctx.owner}/${ctx.repo}/contents/${encodePath(path)}?ref=${sha}`,
+      'application/vnd.github.raw',
+    );
+    if (typeof viaApi === 'string') {
+      fileCache.set(key, viaApi);
+      inFlight.delete(key);
+      return viaApi;
+    }
+
     let text: string | null = null;
     try {
       text = await fetchText(`${ctx.origin}/${ctx.owner}/${ctx.repo}/raw/${sha}/${encodePath(path)}`);
