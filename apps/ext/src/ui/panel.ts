@@ -380,13 +380,13 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
         el('h2', { className: 'sofa-onboard-title', text: 'Sofa needs a token to read this pull request' }),
         el('p', {
           className: 'sofa-onboard-body',
-          text: 'Diffs, file contents and review comments come from this forge\u2019s API, which takes a '
+          text: 'Diffs, file contents and review comments come from the GitHub API, which takes a '
             + 'token rather than your browser session.',
         }),
         el('ol', {
           className: 'sofa-onboard-steps',
           children: [
-            el('li', { html: 'Create a fine-grained token on this forge with <strong>Pull requests: Read</strong> and <strong>Contents: Read</strong>.' }),
+            el('li', { html: 'Create a fine-grained token here with <strong>Contents: Read</strong> and <strong>Pull requests: Read and write</strong>. Write is what lets you leave review comments from Sofa.' }),
             el('li', { text: 'Click the Sofa icon in the browser toolbar.' }),
             el('li', { text: 'Paste the token beside this host and save.' }),
           ],

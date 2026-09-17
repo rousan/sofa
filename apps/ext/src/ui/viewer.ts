@@ -13,6 +13,7 @@ import {
   indexThreadsForFile,
   languageFor,
   newHighlightState,
+  renderMarkdown,
   rowKey,
 } from '@sofa/core';
 import { el } from '../util.ts';
@@ -158,10 +159,8 @@ function shortDate(iso: string): string {
 /**
  * Render one review thread as it appears under its line.
  *
- * The bodies are Markdown as written. They are escaped and shown as-is rather
- * than rendered: a half-implemented Markdown renderer would misrepresent what
- * someone actually said, and getting that wrong in a code review is worse than
- * showing the source.
+ * Bodies go through the Markdown renderer, which escapes before it formats, so
+ * nothing a commenter wrote reaches the page as markup.
  *
  * @param thread - The thread to render.
  * @returns The thread's markup.
@@ -177,7 +176,7 @@ function renderThread(thread: ReviewThread): string {
         ? `<a class="sofa-comment-link" href="${escapeHtml(comment.url)}" target="_blank" rel="noreferrer">open</a>`
         : '')
       + '</div>'
-      + `<div class="sofa-comment-body">${escapeHtml(comment.body)}</div>`
+      + `<div class="sofa-comment-body">${renderMarkdown(comment.body)}</div>`
       + '</div>'
     ))
     .join('');

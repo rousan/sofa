@@ -23,6 +23,7 @@ export { buildFileModel, mergeFullFile, rowsFromHunks, findChangeAnchors } from 
 export { highlightLine, languageFor, newHighlightState } from './highlight.ts';
 export type { HighlightState, Language } from './highlight.ts';
 export { escapeHtml, formatCount, splitLines, debounce } from './text.ts';
+export { renderMarkdown } from './markdown.ts';
 
 export {
   parseReviewComments,

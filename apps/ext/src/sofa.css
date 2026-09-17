@@ -679,9 +679,106 @@ html[data-color-mode="dark"] .sofa-root {
 }
 
 .sofa-comment-body {
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.5;
+}
+
+/*
+ * Markdown inside a comment body.
+ *
+ * A comment sits between two lines of code, so everything here is tuned to
+ * take as little vertical room as it can: block margins collapse to nothing at
+ * the edges, and headings are only slightly larger than the text around them.
+ */
+.sofa-comment-body > *:first-child {
+  margin-top: 0;
+}
+
+.sofa-comment-body > *:last-child {
+  margin-bottom: 0;
+}
+
+.sofa-comment-body p,
+.sofa-comment-body ul,
+.sofa-comment-body ol,
+.sofa-comment-body blockquote,
+.sofa-comment-body pre {
+  margin: 0 0 8px;
+}
+
+.sofa-comment-body h3,
+.sofa-comment-body h4,
+.sofa-comment-body h5,
+.sofa-comment-body h6 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.sofa-comment-body ul,
+.sofa-comment-body ol {
+  padding-left: 20px;
+}
+
+.sofa-comment-body li {
+  margin: 2px 0;
+}
+
+.sofa-comment-body li > ul,
+.sofa-comment-body li > ol {
+  margin: 2px 0;
+}
+
+.sofa-comment-body blockquote {
+  padding: 0 0 0 10px;
+  border-left: 3px solid var(--borderColor-muted, var(--color-border-muted, #d0d7de));
+  color: var(--fgColor-muted, var(--color-fg-muted, #636c76));
+}
+
+.sofa-comment-body code {
+  padding: 0.15em 0.4em;
+  border-radius: 6px;
+  background: var(--bgColor-neutral-muted, var(--color-neutral-muted, rgba(129, 139, 152, 0.16)));
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.sofa-comment-body pre {
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--bgColor-muted, var(--color-canvas-subtle, #f6f8fa));
+}
+
+/* Inside a block, the code is already on its own ground and needs no chip. */
+.sofa-comment-body pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.92em;
+  line-height: 1.45;
+}
+
+.sofa-comment-body a {
+  color: var(--fgColor-accent, var(--color-accent-fg, #0969da));
+  text-decoration: none;
+}
+
+.sofa-comment-body a:hover {
+  text-decoration: underline;
+}
+
+.sofa-comment-body hr {
+  height: 1px;
+  margin: 12px 0;
+  border: 0;
+  background: var(--borderColor-default, var(--color-border-default, #d0d7de));
+}
+
+.sofa-comment-body input[type="checkbox"] {
+  margin: 0 4px 0 0;
+  vertical-align: middle;
 }
 
 /*

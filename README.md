@@ -87,9 +87,8 @@ The other route is to ask IT to allowlist the extension id, which needs a pinned
   from GitHub's own Primer CSS variables, so light, dark, dimmed and high-contrast
   themes are followed with no theme code of Sofa's own.
 - **Review comments in place**: existing threads appear under the line they were
-  written against, with replies. Public repositories need nothing; a private one
-  needs a token pasted into the popup, because the forge serves comments from its
-  API rather than the session.
+  written against, with replies, rendered from Markdown rather than shown as
+  source.
 - **Viewed** checkboxes, remembered per pull request.
 - Added, deleted, renamed and binary files all handled; a file whose full text
   cannot be fetched falls back to plain hunks with a note saying so.
@@ -107,23 +106,27 @@ The other route is to ask IT to allowlist the extension id, which needs a pinned
 
 ## How it works
 
-No API token and no OAuth app: every request is a same-origin request that reuses
-the browser session you are already logged in with, so private repositories and
-GitHub Enterprise work unchanged.
+Everything goes through the GitHub API, which needs a fine-grained token with
+**Contents: Read** and **Pull requests: Read and write**. Paste it into the popup
+once per host. The token is held by the service worker and never reaches the
+page; read access is what renders a pull request, and write is what lets you
+leave comments from Sofa.
 
-1. `<pull-request>.diff` gives the whole pull request as one unified diff.
-   Fetching it takes three routes, because none works everywhere: the service
-   worker (the only one with a CORS exemption, which github.com needs since its
-   `.diff` redirects to another host), a script in the page's own world (for
-   Enterprise, whose media path answers 403 to anything attributed to an
-   extension), and a plain fetch for the offline harness.
-2. The head commit sha comes from the JSON the page embeds, or a blob link on the
-   page, or the last commit in `<pull-request>.patch`.
-3. `/raw/<sha>/<path>` gives each file's full text, fetched lazily per file.
+1. `GET /repos/{owner}/{repo}/pulls/{n}` with `Accept: application/vnd.github.diff`
+   gives the whole pull request as one unified diff. The same path as JSON gives
+   `head.sha`, so the commit under review is known rather than scraped.
+2. `GET /repos/{owner}/{repo}/contents/{path}?ref={sha}` gives each file's full
+   text. Every file is warmed as soon as the diff lands, four at a time, which is
+   why clicking one in the tree is instant.
+3. `GET /repos/{owner}/{repo}/pulls/{n}/comments` gives the review comments.
+   They are threaded on `in_reply_to_id` and placed under the line they were
+   written against, on whichever side of the diff that is.
 4. `src/model.ts` walks the head file and splices the hunks in, verifying the
-   hunks' context lines against the file. If they do not match, the sha was
-   wrong, so Sofa confirms the head commit against the pull request's own
-   `.patch` and retries once before falling back to a plain hunk view.
+   hunks' context lines against the file. A mismatch falls back to plain hunks
+   with a note saying so.
+
+On GitHub Enterprise the base is `https://{host}/api/v3` instead of
+`https://api.github.com`, and that host needs its own token.
 
 ## Supported hosts
 
@@ -148,18 +151,20 @@ A pnpm workspace: two apps and the package they share.
 packages/core/         the forge-agnostic half: diff parser, model, highlighter
   src/diff.ts          unified diff parser
   src/model.ts         splices hunks into the full file
+  src/review.ts        threads review comments and places them on rows
+  src/markdown.ts      renders comment bodies, escaping before it formats
   src/highlight.ts     small dependency-free syntax highlighter
   src/types.ts         the shapes everything passes around
-  test/                parser and merge tests (node --test)
+  test/                parser, merge, thread and Markdown tests (node --test)
 
 apps/ext/              the Chrome extension
   manifest.json        paths are rewritten into dist/ at build time
   scripts/build.mjs    Vite, once per entry, because each bundle is an IIFE
   src/content.ts       injects the Sofa tab, tracks SPA navigation
-  src/background.ts    service worker: script registration and the fetch relay
-  src/fetch-bridge.ts  page-world fetch relay, for forges that refuse extensions
-  src/popup.ts/.html   add or remove Enterprise hosts
-  src/github.ts        all forge fetches and head-sha resolution
+  src/background.ts    service worker: script registration and the API calls
+  src/tokens.ts        per-host tokens, and the API base each host uses
+  src/popup/           the toolbar popup (React, Tailwind): hosts and help
+  src/github.ts        every API call the panel makes
   src/ui/              the panel, the file tree, the file viewer
   src/sofa.css         styling, driven by GitHub's Primer variables
   store/               Chrome Web Store listing copy and screenshot

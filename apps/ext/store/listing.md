@@ -53,21 +53,16 @@ Developer Tools
 ## Permission justifications
 
 - **host_permissions: github.com** - Sofa runs on pull request pages to add its
-  tab, and reads the pull request's diff from that same host.
-- **host_permissions: patch-diff.githubusercontent.com** - github.com redirects
-  a pull request's .diff and .patch to this host; without it the diff cannot be
-  read.
-- **host_permissions: raw.githubusercontent.com** - where github.com serves the
-  full text of a file at a commit, which is what Sofa renders the diff into.
+  tab beside Files changed.
+- **host_permissions: api.github.com** - where the pull request's diff, its file
+  contents and its review comments are read from, and where a comment the user
+  writes in Sofa is posted. The API takes a token rather than the browser
+  session, and it behaves the same on github.com and on Enterprise.
 - **scripting** - to register the content script for a GitHub Enterprise host
   the user adds after installation, which cannot be listed in the manifest.
-- **storage** - to keep the user's optional API token and their host grants in
-  the extension rather than in the page, where any script on the origin could
+- **storage** - to keep the user's API token and their host grants in the
+  extension rather than in the page, where any script on the origin could
   read them.
-- **host_permissions: api.github.com** - where the pull request's diff, its file
-  contents and its review comments are read from. The API takes a token rather
-  than the browser session, and it is the route that works reliably across
-  github.com and Enterprise; the session route remains as a fallback.
 - **optional_host_permissions: all sites** - so a user can point Sofa at their
   own GitHub Enterprise hostname, which is private and unknowable at build time.
   Nothing is granted until the user types a host and accepts Chrome's prompt,
@@ -127,8 +122,9 @@ signed-out session works on a public pull request.
        GitHub Enterprise hostname, and accept Chrome's prompt. The extension
        then works on pull requests there too. Remove it from the same popup.
 
-    Nothing is sent anywhere: every request goes to the GitHub host the tab is
-    already on, using the browser's existing session.
+    A fine-grained token is required, with Contents: Read and Pull requests:
+    Read and write. Paste it into the popup before step 2. Nothing is sent
+    anywhere but GitHub's own API.
 
 ## Visibility
 

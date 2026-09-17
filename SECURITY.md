@@ -45,15 +45,15 @@ Out of scope:
 ## What the extension can reach
 
 Useful context for judging a report. Sofa runs on pull request pages, reads the
-page it is on, and fetches that pull request's diff and file contents from the
-same host using the session the browser already has. It has no server, sends
-nothing anywhere else, and loads no remote code.
+page it is on, and fetches that pull request's diff, file contents and review
+comments from that host's API. It has no server, sends nothing anywhere else,
+and loads no remote code.
 
-It can hold one credential: an optional API token, entered by the user in the
-extension's popup, used to read review comments. It is kept in extension storage
-rather than page storage, and attached only to requests to that host's API. If
-you find a way for a page to read it, that is exactly the kind of thing worth
-reporting.
+It holds one credential: a fine-grained API token, entered by the user in the
+extension's popup, scoped to Contents: Read and Pull requests: Read and write.
+It is kept in extension storage rather than page storage, attached to requests
+by the service worker, and never handed to the page. If you find a way for a
+page to read it, that is exactly the kind of thing worth reporting.
 
 The permissions it holds, and why, are set out in the
 [privacy policy](https://sofa.rousanali.com/privacy/).

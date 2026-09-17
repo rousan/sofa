@@ -36,7 +36,8 @@ const ENTRIES: Entry[] = [
     a: (
       <>
         A fine-grained personal access token: a string GitHub issues that proves a request is yours.
-        Sofa sends it with every API call it makes on your behalf.
+        Sofa sends it with every API call it makes on your behalf, so a comment you leave is posted
+        as you.
       </>
     ),
   },
@@ -45,8 +46,9 @@ const ENTRIES: Entry[] = [
     a: (
       <>
         Sofa reads the pull request&rsquo;s diff, the full text of each changed file, and the review
-        comments from the GitHub API. The API does not accept the session cookie your browser is
-        already logged in with, so without a token there is nothing for Sofa to render.
+        comments from the GitHub API, and posts your comments back the same way. The API does not
+        accept the session cookie your browser is already logged in with, so without a token there is
+        nothing for Sofa to render.
       </>
     ),
   },
@@ -54,8 +56,11 @@ const ENTRIES: Entry[] = [
     q: 'Which permissions does it need?',
     a: (
       <>
-        Two, both read-only: <Perm>Pull requests: Read</Perm> and <Perm>Contents: Read</Perm>. Nothing
-        else. Sofa cannot push, comment, approve, or change anything with a token scoped this way.
+        Two, and both are required: <Perm>Contents: Read</Perm> and{' '}
+        <Perm>Pull requests: Read and write</Perm>. Read alone is enough to view a pull request, but
+        leaving a comment, replying, or submitting a review needs the write half &mdash; without it
+        those actions fail. Nothing beyond these two is requested, so Sofa can never touch a branch,
+        a setting, or a repository&rsquo;s contents.
       </>
     ),
   },
@@ -85,7 +90,8 @@ const ENTRIES: Entry[] = [
     a: (
       <>
         Yes &mdash; a classic token with the <Perm>repo</Perm> scope works. Fine-grained is worth the
-        extra minute, because <Perm>repo</Perm> also grants write access to everything you can reach.
+        extra minute: <Perm>repo</Perm> is all-or-nothing and grants far more than Sofa asks for,
+        across every repository you can reach.
       </>
     ),
   },

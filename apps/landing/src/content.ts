@@ -77,7 +77,7 @@ export const REQUIREMENTS: SpecRow[] = [
   { term: 'Browser', detail: 'Chrome, or any Chromium browser that takes Manifest V3 extensions.' },
   { term: 'GitHub', detail: 'github.com out of the box, public and private repositories alike.' },
   { term: 'Enterprise', detail: 'Click the toolbar icon, type your company GitHub hostname, accept the Chrome prompt. Once, per host.' },
-  { term: 'Token', detail: 'A fine-grained token with Pull requests: Read and Contents: Read, pasted into the popup once per host. Read-only, and it never leaves your browser.' },
+  { term: 'Token', detail: 'A fine-grained token with Contents: Read and Pull requests: Read and write, pasted into the popup once per host. Required, and it never leaves your browser.' },
 ];
 
 /**

@@ -41,7 +41,8 @@ export const POLICY: PolicySection[] = [
       'Sofa runs on pull request pages, on github.com and on any GitHub Enterprise host you add '
       + 'yourself. On those pages it reads the URL to work out which pull request you are on, and '
       + 'then asks GitHub’s API for three things: the pull request’s diff, the text of each changed '
-      + 'file at the commit under review, and the review comments already on it.',
+      + 'file at the commit under review, and the review comments already on it. When you write a '
+      + 'comment or submit a review in Sofa, it is sent to the same API, as you.',
       'Those requests go to GitHub and nowhere else, authenticated with the token you added. The '
       + 'results are rendered in the tab and held in memory until you close it.',
     ],
@@ -59,17 +60,19 @@ export const POLICY: PolicySection[] = [
   {
     title: 'The token',
     paragraphs: [
-      'Sofa reads everything through GitHub’s API: the pull request’s diff, the text of each '
-      + 'changed file, and the review comments already on it. The API does not accept the session '
-      + 'cookie your browser is already signed in with, so a token is how Sofa identifies itself, '
-      + 'and without one there is nothing for it to render.',
+      'Sofa works entirely through GitHub’s API: it reads the pull request’s diff, the text of '
+      + 'each changed file and the review comments already on it, and it posts the comments you '
+      + 'write in Sofa back the same way. The API does not accept the session cookie your browser '
+      + 'is already signed in with, so a token is how Sofa identifies itself, and without one there '
+      + 'is nothing for it to render.',
       'A token you add in the extension’s popup is stored in the extension’s own storage, scoped to '
       + 'the host you entered it for. It is sent to that forge’s API and nowhere else, as the '
       + 'Authorization header. It is never exposed to the page, never logged, and never leaves your '
       + 'browser in any other direction. Clearing the field removes it.',
-      'The permissions it needs are the smallest that work, and both are read-only: Pull requests: '
-      + 'Read for the diff and the comments, and Contents: Read for the file bodies. Scoped that way, '
-      + 'a stolen token could not write anything.',
+      'The permissions it needs are the smallest that work: Contents: Read for the file bodies, and '
+      + 'Pull requests: Read and write for the diff, the comments already there, and the comments you '
+      + 'leave from Sofa yourself. Nothing else is requested, so the token cannot reach a branch, a '
+      + 'setting, or anything outside the pull requests of the repositories you pick.',
     ],
   },
   {
