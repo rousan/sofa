@@ -10,9 +10,12 @@ import { buildFileModel, debounce, formatCount } from '@sofa/core';
 import { el, loadViewed, readSetting, saveViewed, writeSetting } from '../util.ts';
 import { buildTree, flattenPaths, renderTree } from './tree.ts';
 import { renderFile } from './viewer.ts';
+import { openReviewDialog } from './review-dialog.ts';
+import { clearDraft, draftId, loadDraft, saveDraft } from '../draft.ts';
 import * as forge from '../github.ts';
 import type { DiffFile, FileModel, PrContext, ReviewThread, ViewMode } from '@sofa/core';
-import type { ReadError } from '../github.ts';
+import type { CommentTarget, ReadError, ReviewEvent, WriteResult } from '../github.ts';
+import type { ReviewDraft } from '../draft.ts';
 import type { ViewerHandle } from './viewer.ts';
 
 /**
@@ -65,6 +68,46 @@ export interface DiffSource {
    * @param ctx - The pull request being reviewed.
    */
   fetchReviewThreads: (ctx: PrContext) => Promise<{ threads: ReviewThread[]; error: ReadError | null }>;
+  /**
+   * Publish one comment on a line.
+   *
+   * Optional, because the offline harness has no forge to write to.
+   *
+   * @param ctx - The pull request being reviewed.
+   * @param headSha - The commit to anchor the comment to.
+   * @param target - The file, line and side.
+   * @param body - What the reviewer wrote.
+   */
+  postComment?: (
+    ctx: PrContext,
+    headSha: string,
+    target: CommentTarget,
+    body: string,
+  ) => Promise<WriteResult<unknown>>;
+  /**
+   * Reply to an existing thread.
+   *
+   * @param ctx - The pull request being reviewed.
+   * @param inReplyTo - Id of the comment being replied to.
+   * @param body - What the reviewer wrote.
+   */
+  postReply?: (ctx: PrContext, inReplyTo: number, body: string) => Promise<WriteResult<unknown>>;
+  /**
+   * Submit a review, with every comment held back for it.
+   *
+   * @param ctx - The pull request being reviewed.
+   * @param headSha - The commit the review is against.
+   * @param event - Comment, approve or request changes.
+   * @param body - The review summary.
+   * @param comments - The pending line comments.
+   */
+  submitReview?: (
+    ctx: PrContext,
+    headSha: string,
+    event: ReviewEvent,
+    body: string,
+    comments: { path: string; line: number; side: 'LEFT' | 'RIGHT'; body: string }[],
+  ) => Promise<WriteResult<unknown>>;
 }
 
 /**
@@ -295,6 +338,8 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   // which only happens once, and only if a file turns out not to match.
   // Review threads for the whole pull request, fetched once alongside the diff.
   let threads: ReviewThread[] = [];
+  // The review being written: comments held back, and the summary typed so far.
+  let draft: ReviewDraft = { comments: [], summary: '' };
   // Bumped whenever the diff is reloaded, so an in-flight prefetch for the old
   // revision stops instead of filling the cache with stale text.
   let prefetchToken = 0;
@@ -325,6 +370,11 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   const viewerMount = el('main', { className: 'sofa-main' });
   const toolbarMeta = el('div', { className: 'sofa-toolbar-meta' });
   const reloadButton = el('button', { className: 'sofa-btn', text: 'Reload diff', attrs: { type: 'button', title: 'Refetch the pull request diff' } });
+  const reviewButton = el('button', {
+    className: 'sofa-btn sofa-btn--go',
+    text: 'Review changes',
+    attrs: { type: 'button', title: 'Finish your review' },
+  });
   const closeButton = el('button', { className: 'sofa-btn sofa-btn--primary', text: 'Close', attrs: { type: 'button', title: 'Back to GitHub (esc)' } });
   const banner = el('div', { className: 'sofa-banner' });
   banner.hidden = true;
@@ -344,7 +394,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
             ],
           }),
           toolbarMeta,
-          el('div', { className: 'sofa-toolbar-actions', children: [reloadButton, closeButton] }),
+          el('div', { className: 'sofa-toolbar-actions', children: [reloadButton, reviewButton, closeButton] }),
         ],
       }),
       banner,
@@ -536,6 +586,12 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
         mode = nextMode;
         void selectFile(path);
       },
+      drafts: draft.comments,
+      hasPendingReview: draft.comments.length > 0,
+      onAddComment: addComment,
+      onDraftComment: draftComment,
+      onReply: replyToThread,
+      onDiscardDraft: discardDraft,
     });
   }
 
@@ -584,6 +640,126 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   }
 
   /**
+   * Keep the Review changes button showing how much is waiting.
+   *
+   * GitHub puts the count on the button itself, which is the only reminder a
+   * reviewer gets that they have written something nobody can see yet.
+   */
+  function updateReviewButton(): void {
+    const count = draft.comments.length;
+    reviewButton.textContent = count ? `Review changes (${count})` : 'Review changes';
+  }
+
+  /**
+   * Re-read the review comments after something has been posted.
+   *
+   * The forge assigns ids and timestamps, and a reply has to land in the right
+   * thread, so the threads are refetched rather than patched up locally.
+   */
+  async function refreshThreads(): Promise<void> {
+    const comments = await source.fetchReviewThreads(ctx);
+    if (comments.error) return;
+    threads = comments.threads;
+    if (selectedPath) await selectFile(selectedPath);
+  }
+
+  /**
+   * Publish one comment straight away.
+   *
+   * @param target - The file, line and side being commented on.
+   * @param body - What the reviewer wrote.
+   * @returns An error to show in the box, or null when it posted.
+   */
+  async function addComment(target: CommentTarget, body: string): Promise<string | null> {
+    if (!headSha) return 'Sofa does not know which commit to attach this to. Reload the diff.';
+    const post = source.postComment ?? forge.postComment;
+    const result = await post(ctx, headSha, target, body);
+    if (!result.ok) return result.error ?? 'The comment could not be posted.';
+    await refreshThreads();
+    return null;
+  }
+
+  /**
+   * Hold a comment back for the review being written.
+   *
+   * @param target - The file, line and side being commented on.
+   * @param body - What the reviewer wrote.
+   * @returns Always null: keeping a draft cannot fail in a way worth showing.
+   */
+  async function draftComment(target: CommentTarget, body: string): Promise<string | null> {
+    draft.comments.push({ id: draftId(), path: target.path, line: target.line, side: target.side, body });
+    await saveDraft(ctx, draft);
+    updateReviewButton();
+    if (selectedPath) await selectFile(selectedPath);
+    return null;
+  }
+
+  /**
+   * Reply to an existing thread.
+   *
+   * @param inReplyTo - Id of the comment at the root of the thread.
+   * @param body - What the reviewer wrote.
+   * @returns An error to show in the box, or null when it posted.
+   */
+  async function replyToThread(inReplyTo: number, body: string): Promise<string | null> {
+    const reply = source.postReply ?? forge.postReply;
+    const result = await reply(ctx, inReplyTo, body);
+    if (!result.ok) return result.error ?? 'The reply could not be posted.';
+    await refreshThreads();
+    return null;
+  }
+
+  /**
+   * Drop one pending comment from the review.
+   *
+   * @param id - The draft comment's local id.
+   */
+  function discardDraft(id: string): void {
+    draft.comments = draft.comments.filter((comment) => comment.id !== id);
+    void saveDraft(ctx, draft);
+    updateReviewButton();
+    if (selectedPath) void selectFile(selectedPath);
+  }
+
+  /**
+   * Open the finish dialog and, if it is submitted, send the review.
+   */
+  function openFinishDialog(): void {
+    const close = openReviewDialog({
+      host: element,
+      summary: draft.summary,
+      pending: draft.comments.length,
+      onSummaryChange: (value) => {
+        draft.summary = value;
+        void saveDraft(ctx, draft);
+      },
+      onSubmit: async (event, body) => {
+        if (!headSha) return 'Sofa does not know which commit to review. Reload the diff.';
+        // GitHub refuses a review that says nothing at all, and the message it
+        // gives back for it is not one a reviewer would act on.
+        if (!body && draft.comments.length === 0 && event === 'COMMENT') {
+          return 'Write a summary, or leave a comment on a line, before submitting.';
+        }
+        const submit = source.submitReview ?? forge.submitReview;
+        const result = await submit(ctx, headSha, event, body, draft.comments.map((comment) => ({
+          path: comment.path,
+          line: comment.line,
+          side: comment.side,
+          body: comment.body,
+        })));
+        if (!result.ok) return result.error ?? 'The review could not be submitted.';
+
+        draft = { comments: [], summary: '' };
+        await clearDraft(ctx);
+        updateReviewButton();
+        close();
+        await refreshThreads();
+        return null;
+      },
+    });
+  }
+
+  /**
    * Fetch the diff and the head sha, then show the first file.
    *
    * @param force - Discard anything already loaded and start again.
@@ -628,6 +804,14 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
         // Re-render the open file so its comments appear without a click.
         if (selectedPath && threads.length) void selectFile(selectedPath);
       });
+
+      // A review left half-written survives a reload, so it is restored here
+      // rather than lost the first time someone refreshes the page.
+      void loadDraft(ctx).then((stored) => {
+        draft = stored;
+        updateReviewButton();
+        if (selectedPath && draft.comments.length) void selectFile(selectedPath);
+      });
     } catch (err) {
       loaded = false;
       setBanner(describeLoadFailure(err));
@@ -641,6 +825,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   }, 120));
 
   reloadButton.addEventListener('click', () => void load(true));
+  reviewButton.addEventListener('click', openFinishDialog);
   closeButton.addEventListener('click', () => panel.close());
 
   resizer.addEventListener('mousedown', (event) => {

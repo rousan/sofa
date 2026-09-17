@@ -8,6 +8,7 @@
  * merge in `src/model.ts` is exercised on genuinely consistent input.
  */
 import type { DiffSource } from '../src/ui/panel.ts';
+import type { ReviewThread } from '@sofa/core';
 import { parseUnifiedDiff } from '@sofa/core';
 
 /**
@@ -164,7 +165,79 @@ export const diffText = `${diffLines.join('\n')}\n`;
 export const headFileTexts = headFiles;
 
 /**
+ * Two review threads, written the way people actually write them: with code
+ * spans, a fenced block, a list and a link, so the harness shows whether the
+ * Markdown renderer is doing its job.
+ */
+const fixtureThreads: ReviewThread[] = [
+  {
+    id: 9001,
+    path: 'packages/chart-app/src/utils/chart-settings/custom-visual-props.ts',
+    line: 36,
+    side: 'RIGHT',
+    outdated: false,
+    comments: [
+      {
+        id: 9001,
+        inReplyToId: null,
+        author: 'priya',
+        body: 'Does `stripTypename` walk arrays too? A chart spec nests them several deep:\n\n'
+          + '```ts\nconst spec = { layers: [{ __typename: "Layer", marks: [] }] };\n```\n\n'
+          + 'If it only walks plain objects this will miss most of them.',
+        createdAt: '2026-09-15T09:12:00Z',
+        url: '',
+        path: 'packages/chart-app/src/utils/chart-settings/custom-visual-props.ts',
+        line: 36,
+        startLine: null,
+        side: 'RIGHT',
+        outdated: false,
+      },
+      {
+        id: 9002,
+        inReplyToId: 9001,
+        author: 'rousan',
+        body: 'It does - see the array branch in [helpers.ts](https://example.com/helpers).\n\n'
+          + '- objects: every key\n- arrays: every element\n- anything else: returned as is',
+        createdAt: '2026-09-15T10:02:00Z',
+        url: '',
+        path: 'packages/chart-app/src/utils/chart-settings/custom-visual-props.ts',
+        line: 36,
+        startLine: null,
+        side: 'RIGHT',
+        outdated: false,
+      },
+    ],
+  },
+  {
+    id: 9010,
+    path: 'packages/charts/package.json',
+    line: 4,
+    side: 'RIGHT',
+    outdated: false,
+    comments: [
+      {
+        id: 9010,
+        inReplyToId: null,
+        author: 'sam',
+        body: '> bump to 6.2.0\n\nWorth a changelog entry as well. **Not blocking.**',
+        createdAt: '2026-09-15T11:30:00Z',
+        url: '',
+        path: 'packages/charts/package.json',
+        line: 4,
+        startLine: null,
+        side: 'RIGHT',
+        outdated: false,
+      },
+    ],
+  },
+];
+
+/**
  * A `DiffSource` backed entirely by the fixture above.
+ *
+ * The write calls accept whatever they are given and report success without
+ * sending anything, so the comment box and the finish dialog can be exercised
+ * offline. The harness never reaches a forge, so there is nothing to post to.
  */
 export const fixtureSource: DiffSource = {
   fetchPullRequest: async () => ({
@@ -173,5 +246,8 @@ export const fixtureSource: DiffSource = {
     error: null,
   }),
   fetchFileAtSha: async (_ctx, _sha, path) => headFiles[path] ?? null,
-  fetchReviewThreads: async () => ({ threads: [], error: null }),
+  fetchReviewThreads: async () => ({ threads: fixtureThreads, error: null }),
+  postComment: async () => ({ ok: true, body: null, error: null }),
+  postReply: async () => ({ ok: true, body: null, error: null }),
+  submitReview: async () => ({ ok: true, body: null, error: null }),
 };

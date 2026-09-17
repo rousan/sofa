@@ -1,5 +1,5 @@
 /**
- * Everything Sofa reads from the forge.
+ * Everything Sofa reads from the forge, and everything it writes back.
  *
  * All of it goes through the forge's API, with a token the user supplies. The
  * browser session cannot be used: the API does not accept cookies, and the
@@ -13,7 +13,7 @@
  * asks for a path and gets a body back.
  */
 import { buildThreads, parseReviewComments, parseUnifiedDiff } from '@sofa/core';
-import type { DiffFile, PrContext, ReviewThread } from '@sofa/core';
+import type { DiffFile, DiffSide, PrContext, ReviewThread } from '@sofa/core';
 
 /**
  * Cache of fetched file text, keyed by commit sha and path.
@@ -86,6 +86,46 @@ async function api<T>(path: string, accept?: string): Promise<ApiResult<T>> {
     return { body: null, error: reply?.error === 'needs-token' ? 'needs-token' : 'failed' };
   } catch {
     return { body: null, error: 'failed' };
+  }
+}
+
+/**
+ * The outcome of a write.
+ *
+ * Unlike a read, a failed write is always shown to the person who attempted it,
+ * so the forge's own message is carried through rather than reduced to a flag.
+ */
+export interface WriteResult<T> {
+  /** True when the forge accepted it. */
+  ok: boolean;
+  /** What came back, when it did. */
+  body: T | null;
+  /** What to tell the reader, when it did not. */
+  error: string | null;
+}
+
+/**
+ * Send something to the forge's API.
+ *
+ * @param path - API path to post to.
+ * @param payload - The JSON body.
+ * @param method - HTTP method; POST unless a caller needs otherwise.
+ * @returns Whether it was accepted, and what to show if not.
+ */
+async function write<T>(path: string, payload: unknown, method = 'POST'): Promise<WriteResult<T>> {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+    return { ok: false, body: null, error: 'Sofa is not connected to the extension.' };
+  }
+  try {
+    const reply = await chrome.runtime.sendMessage({ kind: 'sofa:api', path, method, payload }) as
+      { ok?: boolean; body?: unknown; error?: string } | undefined;
+    if (reply?.ok) return { ok: true, body: (reply.body ?? null) as T | null, error: null };
+    const error = reply?.error === 'needs-token'
+      ? 'Add a token in the Sofa popup to comment here.'
+      : reply?.error ?? 'The comment could not be posted.';
+    return { ok: false, body: null, error };
+  } catch {
+    return { ok: false, body: null, error: 'The comment could not be posted.' };
   }
 }
 
@@ -189,4 +229,122 @@ export async function fetchReviewThreads(
 export function blobUrl(ctx: PrContext, sha: string | null, path: string): string {
   if (sha) return `${ctx.origin}/${ctx.owner}/${ctx.repo}/blob/${sha}/${encodePath(path)}`;
   return `${ctx.origin}/${ctx.owner}/${ctx.repo}/pull/${ctx.number}/files`;
+}
+
+/**
+ * Where a new comment is being attached.
+ */
+export interface CommentTarget {
+  /** Repository-relative path of the file. */
+  path: string;
+  /** The line number, in the file as that side of the diff numbers it. */
+  line: number;
+  /** Which side of the diff the line belongs to. */
+  side: DiffSide;
+}
+
+/**
+ * Post one comment on a line, published immediately.
+ *
+ * This is GitHub's "Add single comment": it is not part of a review, and the
+ * author is notified as soon as it lands.
+ *
+ * @param ctx - The pull request being reviewed.
+ * @param headSha - The commit the comment is anchored to.
+ * @param target - The file, line and side being commented on.
+ * @param body - What the reviewer wrote.
+ * @returns The created comment, or why it was refused.
+ */
+export async function postComment(
+  ctx: PrContext,
+  headSha: string,
+  target: CommentTarget,
+  body: string,
+): Promise<WriteResult<unknown>> {
+  return write(`/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}/comments`, {
+    body,
+    commit_id: headSha,
+    path: target.path,
+    line: target.line,
+    side: target.side,
+  });
+}
+
+/**
+ * Reply to an existing review comment.
+ *
+ * A reply joins the thread its parent started, so it needs neither a line nor
+ * a commit: the parent already fixes both.
+ *
+ * @param ctx - The pull request being reviewed.
+ * @param inReplyTo - Id of the comment being replied to.
+ * @param body - What the reviewer wrote.
+ * @returns The created comment, or why it was refused.
+ */
+export async function postReply(
+  ctx: PrContext,
+  inReplyTo: number,
+  body: string,
+): Promise<WriteResult<unknown>> {
+  return write(
+    `/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}/comments/${inReplyTo}/replies`,
+    { body },
+  );
+}
+
+/**
+ * One comment in a review being submitted.
+ */
+export interface ReviewDraftComment {
+  /** Repository-relative path of the file. */
+  path: string;
+  /** The line the comment is against. */
+  line: number;
+  /** Which side of the diff that line is on. */
+  side: DiffSide;
+  /** What the reviewer wrote. */
+  body: string;
+}
+
+/**
+ * What submitting a review does to the pull request.
+ *
+ * These are the forge's own event names, and the three choices GitHub offers
+ * when finishing a review.
+ */
+export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
+
+/**
+ * Submit a review: its comments and its verdict, in one call.
+ *
+ * Every pending comment is sent here rather than as it is written, because the
+ * REST API has no way to add a comment to a review that is already pending.
+ * That is also what makes the draft private until the moment it is submitted,
+ * which is the behaviour a review is supposed to have.
+ *
+ * @param ctx - The pull request being reviewed.
+ * @param headSha - The commit the review is against.
+ * @param event - Comment, approve, or request changes.
+ * @param body - The review's summary comment, which may be empty.
+ * @param comments - The line comments gathered while reviewing.
+ * @returns The created review, or why it was refused.
+ */
+export async function submitReview(
+  ctx: PrContext,
+  headSha: string,
+  event: ReviewEvent,
+  body: string,
+  comments: ReviewDraftComment[],
+): Promise<WriteResult<unknown>> {
+  return write(`/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.number}/reviews`, {
+    commit_id: headSha,
+    event,
+    body,
+    comments: comments.map((comment) => ({
+      path: comment.path,
+      line: comment.line,
+      side: comment.side,
+      body: comment.body,
+    })),
+  });
 }

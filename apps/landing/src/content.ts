@@ -58,7 +58,11 @@ export const HOW_IT_WORKS: SpecRow[] = [
   },
   {
     term: 'Comments in place',
-    detail: 'Existing review comments appear under the line they were written against, threaded, with replies.',
+    detail: 'Existing review comments appear under the line they were written against, threaded, with replies, rendered from Markdown.',
+  },
+  {
+    term: 'Review from here',
+    detail: 'Comment on a line, reply, hold comments back as a pending review, then approve or request changes. The same dialog GitHub gives you.',
   },
   {
     term: 'Instant',

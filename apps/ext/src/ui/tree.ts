@@ -5,7 +5,7 @@
  * (`packages/chart-app/src/utils`), the way an editor shows them, which is
  * what keeps a deep monorepo path readable in a narrow sidebar.
  */
-import { el } from '../util.ts';
+import { el, icon } from '../util.ts';
 import type { DiffFile, FileStatus } from '@sofa/core';
 
 /**
@@ -88,30 +88,6 @@ const STATUS_MARK: Record<FileStatus, string> = {
   modified: 'M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z',
   renamed: 'M6.5 4.75 10.75 8 6.5 11.25Z',
 };
-
-/**
- * Build a 16px Octicon-shaped SVG.
- *
- * @param className - Class applied to the svg, which colours it via currentColor.
- * @param paths - One or more path definitions to draw.
- * @param title - Accessible label, omitted for purely decorative icons.
- * @returns The icon element.
- */
-function icon(className: string, paths: readonly string[], title?: string): SVGSVGElement {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', className);
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('width', '16');
-  svg.setAttribute('height', '16');
-  svg.setAttribute('aria-hidden', 'true');
-  if (title) svg.setAttribute('aria-label', title);
-  for (const definition of paths) {
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', definition);
-    svg.appendChild(path);
-  }
-  return svg;
-}
 
 /**
  * Create an empty directory node.

@@ -18,7 +18,10 @@ import {
 } from '@sofa/core';
 import { el } from '../util.ts';
 import { blobUrl } from '../github.ts';
-import type { DiffFile, FileModel, PrContext, ReviewThread, Row, ViewMode } from '@sofa/core';
+import { createCompose } from './compose.ts';
+import type { CommentTarget } from '../github.ts';
+import type { DraftComment } from '../draft.ts';
+import type { DiffFile, DiffSide, FileModel, PrContext, ReviewThread, Row, ViewMode } from '@sofa/core';
 
 /**
  * Above this many rows the viewer refuses to lay out the whole file and shows
@@ -53,6 +56,40 @@ export interface ViewerOptions {
   onModeChange: (mode: ViewMode) => void;
   /** Review threads for the whole pull request, filtered here to this file. */
   threads: ReviewThread[];
+  /** Comments written but not yet submitted, for the whole pull request. */
+  drafts: DraftComment[];
+  /** True once the review has comments waiting, which renames the buttons. */
+  hasPendingReview: boolean;
+  /**
+   * Publish one comment immediately, as GitHub's "Add single comment" does.
+   *
+   * @param target - The file, line and side being commented on.
+   * @param body - What was written.
+   * @returns An error to show in the box, or null when it posted.
+   */
+  onAddComment: (target: CommentTarget, body: string) => Promise<string | null>;
+  /**
+   * Hold one comment back for the review being written.
+   *
+   * @param target - The file, line and side being commented on.
+   * @param body - What was written.
+   * @returns An error to show in the box, or null when it was kept.
+   */
+  onDraftComment: (target: CommentTarget, body: string) => Promise<string | null>;
+  /**
+   * Reply to an existing thread.
+   *
+   * @param inReplyTo - Id of the comment at the root of the thread.
+   * @param body - What was written.
+   * @returns An error to show in the box, or null when it posted.
+   */
+  onReply: (inReplyTo: number, body: string) => Promise<string | null>;
+  /**
+   * Drop a pending comment from the review.
+   *
+   * @param id - The draft comment's local id.
+   */
+  onDiscardDraft: (id: string) => void;
 }
 
 /**
@@ -98,11 +135,25 @@ function visibleIndexes(rows: Row[], mode: ViewMode): Set<number> | null {
  * @param mode - Either whole file or changes only.
  * @returns The rows' HTML.
  */
-function renderRows(rows: Row[], path: string, mode: ViewMode, threads: ReviewThread[]): string {
+function renderRows(
+  rows: Row[],
+  path: string,
+  mode: ViewMode,
+  threads: ReviewThread[],
+  drafts: DraftComment[],
+): string {
   const lang = languageFor(path);
   const state = newHighlightState();
   const keep = visibleIndexes(rows, mode);
   const { byRow } = indexThreadsForFile(threads, path);
+  const draftsByRow = new Map<string, DraftComment[]>();
+  for (const draft of drafts) {
+    if (draft.path !== path) continue;
+    const key = rowKey(draft.side, draft.line);
+    const list = draftsByRow.get(key);
+    if (list) list.push(draft);
+    else draftsByRow.set(key, [draft]);
+  }
   const parts: string[] = [];
   let skipping = false;
 
@@ -123,8 +174,21 @@ function renderRows(rows: Row[], path: string, mode: ViewMode, threads: ReviewTh
       return;
     }
     const sign = row.kind === 'add' ? '+' : row.kind === 'del' ? '-' : ' ';
+
+    // A comment is anchored to the side of the diff the line actually exists
+    // on: a deleted line only exists on the left, everything else on the right.
+    const side: DiffSide | null = row.kind === 'del'
+      ? (row.oldNo !== null ? 'LEFT' : null)
+      : (row.newNo !== null ? 'RIGHT' : null);
+    const line = side === 'LEFT' ? row.oldNo : row.newNo;
+    const anchor = side && line !== null ? ` data-side="${side}" data-line="${line}"` : '';
+
     parts.push(
-      `<div class="sofa-row sofa-row--${row.kind}" data-index="${index}">`
+      `<div class="sofa-row sofa-row--${row.kind}" data-index="${index}"${anchor}>`
+        + (anchor
+          ? '<button type="button" class="sofa-row-comment" title="Add a comment on this line"'
+            + ' aria-label="Add a comment on this line">+</button>'
+          : '')
         + `<span class="sofa-gutter">${row.oldNo ?? ''}</span>`
         + `<span class="sofa-gutter">${row.newNo ?? ''}</span>`
         + `<span class="sofa-sign">${sign}</span>`
@@ -139,9 +203,37 @@ function renderRows(rows: Row[], path: string, mode: ViewMode, threads: ReviewTh
       ...(row.oldNo !== null && row.kind === 'del' ? byRow.get(rowKey('LEFT', row.oldNo)) ?? [] : []),
     ];
     for (const thread of here) parts.push(renderThread(thread));
+
+    if (side && line !== null) {
+      for (const draft of draftsByRow.get(rowKey(side, line)) ?? []) {
+        parts.push(renderDraft(draft));
+      }
+    }
   });
 
   return parts.join('');
+}
+
+/**
+ * Render one pending comment, waiting to go up with the review.
+ *
+ * It is marked as pending rather than shown like a posted comment, because the
+ * difference matters: nobody else can see it yet, and it will stay that way
+ * until the review is submitted.
+ *
+ * @param draft - The comment being held back.
+ * @returns The draft's markup.
+ */
+function renderDraft(draft: DraftComment): string {
+  return '<div class="sofa-thread sofa-thread--draft">'
+    + '<div class="sofa-thread-head">'
+    + '<span class="sofa-pending">Pending</span>'
+    + `<button type="button" class="sofa-draft-discard" data-draft="${escapeHtml(draft.id)}">Discard</button>`
+    + '</div>'
+    + '<div class="sofa-comment">'
+    + `<div class="sofa-comment-body">${renderMarkdown(draft.body)}</div>`
+    + '</div>'
+    + '</div>';
 }
 
 /**
@@ -183,9 +275,15 @@ function renderThread(thread: ReviewThread): string {
 
   const count = thread.comments.length;
   const label = count === 1 ? '1 comment' : `${count} comments`;
+  // An outdated thread has lost the line it was written against, so a reply
+  // would have nowhere to attach and the button is left off.
+  const reply = thread.outdated
+    ? ''
+    : `<button type="button" class="sofa-thread-reply" data-reply="${thread.id}">Reply</button>`;
   return '<div class="sofa-thread">'
     + `<div class="sofa-thread-head">${label}${thread.outdated ? ' · outdated' : ''}</div>`
     + comments
+    + `<div class="sofa-thread-foot">${reply}</div>`
     + '</div>';
 }
 
@@ -294,7 +392,7 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
   } else if (!model.rows.length) {
     body.appendChild(el('p', { className: 'sofa-empty', text: 'No textual changes in this file.' }));
   } else {
-    body.innerHTML = renderRows(model.rows, file.path, mode, options.threads);
+    body.innerHTML = renderRows(model.rows, file.path, mode, options.threads, options.drafts);
   }
 
   mount.textContent = '';
@@ -322,6 +420,101 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
 
   prevButton.addEventListener('click', () => jumpToChange(-1));
   nextButton.addEventListener('click', () => jumpToChange(1));
+
+  // One box at a time, the way GitHub behaves: opening a second closes the
+  // first, so a half-written comment cannot be left somewhere off screen.
+  let openBox: HTMLElement | null = null;
+
+  /**
+   * Take down whatever comment box is open.
+   */
+  function closeBox(): void {
+    openBox?.remove();
+    openBox = null;
+  }
+
+  /**
+   * Put a comment box into the rows, just after the element it belongs to.
+   *
+   * @param after - The row or thread the box is attached to.
+   * @param box - The box's element.
+   */
+  function openAfter(after: Element, box: HTMLElement): void {
+    closeBox();
+    const holder = el('div', { className: 'sofa-inline-compose', children: [box] });
+    after.insertAdjacentElement('afterend', holder);
+    openBox = holder;
+  }
+
+  body.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+
+    const discard = target.closest<HTMLElement>('.sofa-draft-discard');
+    if (discard) {
+      const id = discard.dataset['draft'];
+      if (id) options.onDiscardDraft(id);
+      return;
+    }
+
+    const replyButton = target.closest<HTMLElement>('.sofa-thread-reply');
+    if (replyButton) {
+      const inReplyTo = Number(replyButton.dataset['reply']);
+      const thread = replyButton.closest('.sofa-thread');
+      if (!thread || !Number.isFinite(inReplyTo)) return;
+      const compose = createCompose({
+        placeholder: 'Reply',
+        onCancel: closeBox,
+        actions: [{
+          label: 'Reply',
+          primary: true,
+          run: async (value) => {
+            const error = await options.onReply(inReplyTo, value);
+            if (!error) closeBox();
+            return error;
+          },
+        }],
+      });
+      openAfter(thread, compose.element);
+      compose.focus();
+      return;
+    }
+
+    const addButton = target.closest<HTMLElement>('.sofa-row-comment');
+    if (!addButton) return;
+    const row = addButton.closest<HTMLElement>('.sofa-row');
+    const side = row?.dataset['side'] as DiffSide | undefined;
+    const line = Number(row?.dataset['line']);
+    if (!row || !side || !Number.isFinite(line)) return;
+
+    const commentTarget: CommentTarget = { path: file.path, line, side };
+    const compose = createCompose({
+      onCancel: closeBox,
+      actions: [
+        {
+          label: 'Add single comment',
+          run: async (value) => {
+            const error = await options.onAddComment(commentTarget, value);
+            if (!error) closeBox();
+            return error;
+          },
+        },
+        {
+          // Once a review is under way the button stops offering to start one,
+          // which is exactly how GitHub relabels it.
+          label: options.hasPendingReview ? 'Add review comment' : 'Start a review',
+          primary: true,
+          run: async (value) => {
+            const error = await options.onDraftComment(commentTarget, value);
+            if (!error) closeBox();
+            return error;
+          },
+        },
+      ],
+    });
+    openAfter(row, compose.element);
+    compose.focus();
+  });
 
   return { jumpToChange, scroller: body, renderedMode: mode };
 }

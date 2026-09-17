@@ -89,6 +89,12 @@ The other route is to ask IT to allowlist the extension id, which needs a pinned
 - **Review comments in place**: existing threads appear under the line they were
   written against, with replies, rendered from Markdown rather than shown as
   source.
+- **Write a review without leaving Sofa**: hover a line for the `+` button, then
+  *Add single comment* to publish one straight away or *Start a review* to hold
+  it back. Pending comments are marked as such, the toolbar counts them, and
+  *Review changes* opens GitHub's own finish dialog: a summary, then Comment,
+  Approve or Request changes. The box has Write and Preview tabs and the same
+  formatting toolbar.
 - **Viewed** checkboxes, remembered per pull request.
 - Added, deleted, renamed and binary files all handled; a file whose full text
   cannot be fetched falls back to plain hunks with a note saying so.

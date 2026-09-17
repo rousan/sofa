@@ -37,6 +37,9 @@ html.sofa-locked body {
   --sofa-del-bg: var(--diffBlob-deletion-bgColor-line, var(--color-diff-blob-deletion-line-bg, #ffebe9));
   --sofa-del-gutter: var(--diffBlob-deletion-bgColor-num, var(--color-diff-blob-deletion-num-bg, #ffd8d3));
   --sofa-flash: var(--bgColor-attention-muted, var(--color-attention-subtle, #fff8c5));
+  --sofa-go: var(--button-primary-bgColor-rest, var(--color-btn-primary-bg, #1f883d));
+  --sofa-go-hover: var(--button-primary-bgColor-hover, var(--color-btn-primary-hover-bg, #1a7f37));
+  --sofa-focus: var(--focus-outlineColor, var(--color-accent-fg, #0969da));
   --sofa-token-keyword: var(--color-prettylights-syntax-keyword, #cf222e);
   --sofa-token-string: var(--color-prettylights-syntax-string, #0a3069);
   --sofa-token-comment: var(--color-prettylights-syntax-comment, #6e7781);
@@ -67,6 +70,9 @@ html.sofa-locked body {
     --sofa-text: var(--fgColor-default, var(--color-fg-default, #f0f6fc));
     --sofa-text-muted: var(--fgColor-muted, var(--color-fg-muted, #9198a1));
     --sofa-accent: var(--fgColor-accent, var(--color-accent-fg, #4493f8));
+  --sofa-go: var(--button-primary-bgColor-rest, var(--color-btn-primary-bg, #238636));
+  --sofa-go-hover: var(--button-primary-bgColor-hover, var(--color-btn-primary-hover-bg, #2ea043));
+  --sofa-focus: var(--focus-outlineColor, var(--color-accent-fg, #4493f8));
     --sofa-add-text: var(--fgColor-success, var(--color-success-fg, #3fb950));
     --sofa-del-text: var(--fgColor-danger, var(--color-danger-fg, #f85149));
     --sofa-add-bg: var(--diffBlob-addition-bgColor-line, var(--color-diff-blob-addition-line-bg, rgba(46, 160, 67, 0.15)));
@@ -821,4 +827,395 @@ html[data-color-mode="dark"] .sofa-root {
 
 .sofa-onboard-action {
   display: inline-block;
+}
+
+/*
+ * The green button GitHub uses for the action that commits to something:
+ * starting a review, replying, submitting. Disabled it keeps its colour at low
+ * opacity, which is how GitHub shows a button that is waiting on a field.
+ */
+.sofa-btn--go {
+  background: var(--sofa-go);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.sofa-btn--go:hover:not(:disabled) {
+  background: var(--sofa-go-hover);
+}
+
+.sofa-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/*
+ * The button that opens a comment box, in the gutter of a line.
+ *
+ * It only appears on the row under the pointer, so the diff is not a column of
+ * plus signs, and it is absolutely positioned so it cannot shift the code.
+ */
+.sofa-row {
+  position: relative;
+}
+
+.sofa-row-comment {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--sofa-accent);
+  color: #ffffff;
+  font-family: var(--sofa-font);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.sofa-row:hover .sofa-row-comment,
+.sofa-row-comment:focus-visible {
+  display: flex;
+}
+
+/* A thread's reply row, and the pending marker on an unsent comment. */
+.sofa-thread-foot {
+  padding: 6px 12px 8px;
+}
+
+.sofa-thread-reply {
+  appearance: none;
+  border: 1px solid var(--sofa-border);
+  border-radius: 6px;
+  background: var(--sofa-bg);
+  color: var(--sofa-text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.sofa-thread-reply:hover {
+  color: var(--sofa-text);
+}
+
+.sofa-thread--draft {
+  border-left: 3px solid var(--sofa-go);
+}
+
+.sofa-thread--draft .sofa-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sofa-pending {
+  display: inline-block;
+  padding: 0 7px;
+  border: 1px solid var(--sofa-border);
+  border-radius: 2em;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--sofa-text-muted);
+}
+
+.sofa-draft-discard {
+  appearance: none;
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--sofa-text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sofa-draft-discard:hover {
+  color: var(--sofa-del-text);
+}
+
+/*
+ * The comment box, in the three places a reviewer writes something. The layout
+ * follows GitHub's: tabs and a formatting toolbar on one line, the field, a
+ * hint, then the buttons ranged right.
+ */
+.sofa-inline-compose {
+  padding: 8px 12px 12px 48px;
+  background: var(--sofa-bg);
+}
+
+.sofa-compose {
+  border: 1px solid var(--sofa-border);
+  border-radius: 6px;
+  background: var(--sofa-bg);
+  font-family: var(--sofa-font);
+}
+
+.sofa-compose-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--sofa-border);
+  background: var(--sofa-bg-muted);
+  border-radius: 6px 6px 0 0;
+}
+
+.sofa-compose-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.sofa-compose-tab {
+  appearance: none;
+  position: relative;
+  bottom: -1px;
+  border: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: var(--sofa-text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+/* The selected tab joins the field below it by cutting its own bottom border. */
+.sofa-compose-tab--on {
+  border-color: var(--sofa-border);
+  border-bottom-color: var(--sofa-bg);
+  background: var(--sofa-bg);
+  font-weight: 500;
+}
+
+.sofa-compose-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-bottom: 4px;
+}
+
+.sofa-compose-tool {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--sofa-text-muted);
+  cursor: pointer;
+}
+
+.sofa-compose-tool:hover {
+  background: var(--sofa-bg-inset);
+  color: var(--sofa-text);
+}
+
+.sofa-compose-tool svg {
+  fill: currentColor;
+}
+
+/* H, B, I and <> are letterforms on GitHub's toolbar, not icons. */
+.sofa-tool-letter {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.sofa-tool-bold {
+  font-weight: 700;
+}
+
+.sofa-tool-italic {
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 15px;
+}
+
+.sofa-tool-code {
+  font-family: var(--sofa-font-mono);
+  font-size: 12px;
+}
+
+.sofa-compose-body {
+  padding: 8px;
+}
+
+.sofa-compose-field {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid var(--sofa-border);
+  border-radius: 6px;
+  background: var(--sofa-bg-inset);
+  color: var(--sofa-text);
+  font-family: var(--sofa-font);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.sofa-compose-field:focus {
+  outline: none;
+  border-color: var(--sofa-focus);
+  background: var(--sofa-bg);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sofa-focus) 25%, transparent);
+}
+
+.sofa-compose-preview {
+  min-height: 90px;
+  padding: 8px 8px 16px;
+  border-bottom: 1px solid var(--sofa-border);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sofa-compose-nothing {
+  color: var(--sofa-text-muted);
+}
+
+.sofa-compose-foot {
+  padding: 0 8px 8px;
+  font-size: 12px;
+  color: var(--sofa-text-muted);
+}
+
+.sofa-compose-error {
+  margin: 0;
+  padding: 0 8px 8px;
+  color: var(--sofa-del-text);
+  font-size: 12px;
+}
+
+.sofa-compose-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 8px 8px;
+}
+
+/*
+ * The finish dialog. It is mounted inside the panel rather than the document so
+ * it cannot outlive the panel, and it is fixed rather than absolute because the
+ * panel scrolls with the page.
+ */
+.sofa-review-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px 16px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.sofa-review-dialog {
+  width: min(768px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  border: 1px solid var(--sofa-border);
+  border-radius: 12px;
+  background: var(--sofa-bg);
+  color: var(--sofa-text);
+  font-family: var(--sofa-font);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.sofa-review-head {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--sofa-border);
+}
+
+.sofa-review-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.sofa-review-close {
+  appearance: none;
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--sofa-text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sofa-review-close:hover {
+  color: var(--sofa-text);
+}
+
+.sofa-review-body {
+  padding: 16px;
+}
+
+.sofa-review-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.sofa-review-choice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.sofa-review-choice input {
+  margin: 2px 0 0;
+}
+
+.sofa-review-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sofa-review-choice-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sofa-review-choice-detail {
+  font-size: 12px;
+  color: var(--sofa-text-muted);
+}
+
+/*
+ * The dialog's own footer, holding Submit review below the three choices, which
+ * is where GitHub puts it.
+ */
+.sofa-review-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--sofa-border);
+}
+
+.sofa-review-foot .sofa-compose-actions,
+.sofa-review-foot .sofa-compose-error {
+  padding: 0;
+}
+
+.sofa-review-foot .sofa-compose-error {
+  padding-bottom: 8px;
 }

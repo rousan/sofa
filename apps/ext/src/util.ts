@@ -114,3 +114,31 @@ export function loadViewed(ctx: PrContext): Set<string> {
 export function saveViewed(ctx: PrContext, viewed: Set<string>): void {
   writeSetting(viewedKey(ctx), JSON.stringify([...viewed]));
 }
+
+/**
+ * Build a 16px Octicon-shaped SVG.
+ *
+ * GitHub's own icons are inlined per use rather than served as a sprite, so
+ * there is nothing on the page to reference; Sofa draws its own at the same
+ * size and inherits colour through `currentColor`.
+ *
+ * @param className - Class applied to the svg, which colours it via currentColor.
+ * @param paths - One or more path definitions to draw.
+ * @param title - Accessible label, omitted for purely decorative icons.
+ * @returns The icon element.
+ */
+export function icon(className: string, paths: readonly string[], title?: string): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', className);
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('aria-hidden', 'true');
+  if (title) svg.setAttribute('aria-label', title);
+  for (const definition of paths) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', definition);
+    svg.appendChild(path);
+  }
+  return svg;
+}
