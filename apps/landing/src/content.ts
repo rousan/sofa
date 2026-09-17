@@ -75,18 +75,18 @@ export const HOW_IT_WORKS: SpecRow[] = [
  */
 export const REQUIREMENTS: SpecRow[] = [
   { term: 'Browser', detail: 'Chrome, or any Chromium browser that takes Manifest V3 extensions.' },
-  { term: 'GitHub', detail: 'github.com out of the box. Private repositories included, using the session you already have.' },
+  { term: 'GitHub', detail: 'github.com out of the box, public and private repositories alike.' },
   { term: 'Enterprise', detail: 'Click the toolbar icon, type your company GitHub hostname, accept the Chrome prompt. Once, per host.' },
-  { term: 'Token', detail: 'A fine-grained token with Pull requests: Read and Contents: Read, pasted into the popup. That is the reliable route; public pull requests work without one.' },
+  { term: 'Token', detail: 'A fine-grained token with Pull requests: Read and Contents: Read, pasted into the popup once per host. Read-only, and it never leaves your browser.' },
 ];
 
 /**
  * What it does with your code, which is the question that matters.
  */
 export const PRIVACY: SpecRow[] = [
-  { term: 'On your machine', detail: 'Sofa reads the pages you already have open, with the session you are already signed in with.' },
+  { term: 'On your machine', detail: "Sofa calls GitHub's API directly from your browser, with your own token. Nothing passes through anyone else." },
   { term: 'No server', detail: 'There is nowhere to send anything. No backend, no analytics, no telemetry, no remote code.' },
-  { term: 'Stored locally', detail: 'Only which files you marked viewed, in your own browser, per pull request.' },
+  { term: 'Stored locally', detail: 'Your token and which files you marked viewed, in your own browser profile and nowhere else.' },
   { term: 'Open source', detail: 'Every line is on GitHub, including the build that produces the uploaded package.' },
 ];
 

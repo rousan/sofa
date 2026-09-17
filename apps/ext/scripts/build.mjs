@@ -10,7 +10,7 @@
  * paths made relative to `dist/`, so `dist/` alone is the unpacked extension.
  */
 import { build } from 'vite';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -45,6 +45,10 @@ const ASSETS = [
  * @returns {Promise<void>} Resolves once every file is in place.
  */
 async function copyAssets() {
+  // Wiped first because the popup's bundles carry a content hash in their
+  // names: without this, every rebuild leaves the previous hash behind and the
+  // packaged zip accumulates dead assets that no page references.
+  await rm(resolve(root, 'dist'), { recursive: true, force: true });
   await mkdir(resolve(root, 'dist/icons'), { recursive: true });
   for (const [from, to] of ASSETS) {
     await copyFile(resolve(root, from), resolve(root, to));

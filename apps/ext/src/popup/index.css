@@ -1,41 +1,59 @@
 @import "tailwindcss";
 
 /*
- * The popup's palette. It is its own document rather than part of a forge page,
- * so it follows the browser's light or dark setting instead of GitHub's theme.
+ * The popup's palette, in one place.
+ *
+ * Light is the base: `@theme` must sit at the top level for Tailwind to build
+ * utilities from it, so the dark variant cannot live in a nested `@theme` and
+ * instead re-declares the same custom properties under a media query below.
+ * That is also the bug this replaced - a nested `@theme` was not scoped to its
+ * media query, so the dark palette won in both settings.
+ *
+ * The palette is deliberately monochrome. Colour carries meaning here: green
+ * and red say whether a host can be read, and the accent marks the one primary
+ * action on screen. Nothing else is tinted.
  */
 @theme {
-  --color-ink: #16181d;
-  --color-ink-soft: #5b6270;
-  --color-ink-faint: #8b93a1;
+  --color-ink: #1a1c20;
+  --color-ink-soft: #5c636e;
+  --color-ink-faint: #8c939e;
   --color-surface: #ffffff;
-  --color-surface-soft: #f6f7f9;
-  --color-edge: #e3e6ea;
-  --color-brand: #4b3dd6;
+  --color-surface-soft: #f7f8f9;
+  --color-edge: #e5e7eb;
+  --color-accent: #4b3dd6;
   --color-ok: #1a7f37;
   --color-bad: #cf222e;
 }
 
+/*
+ * The dark palette. Plain custom properties rather than a second `@theme`, so
+ * every `text-ink` and `border-edge` in the components resolves to these
+ * instead without any dark: variants in the markup.
+ */
 @media (prefers-color-scheme: dark) {
-  @theme {
-    --color-ink: #e8eaed;
-    --color-ink-soft: #9aa2b1;
-    --color-ink-faint: #6b7280;
-    --color-surface: #16181d;
-    --color-surface-soft: #1d2026;
-    --color-edge: #2c313a;
-    --color-brand: #8b7dff;
+  :root {
+    --color-ink: #e6e8eb;
+    --color-ink-soft: #9aa1ac;
+    --color-ink-faint: #6e757f;
+    --color-surface: #17191d;
+    --color-surface-soft: #1e2126;
+    --color-edge: #2a2e35;
+    --color-accent: #8b7dff;
     --color-ok: #3fb950;
     --color-bad: #f85149;
   }
 }
 
+/*
+ * Tells the browser to render form controls and scrollbars in the setting the
+ * palette above is following, so a text input does not stay white on dark.
+ */
 html {
   color-scheme: light dark;
 }
 
 body {
-  width: 360px;
+  width: 340px;
   margin: 0;
   background: var(--color-surface);
   color: var(--color-ink);
