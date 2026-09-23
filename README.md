@@ -74,6 +74,10 @@ The other route is to ask IT to allowlist the extension id, which needs a pinned
   hidden.
 - **File tree** with status letters (A/D/R/M), per-file `+`/`-` counts, a filter
   box, single-child directory collapsing, and a draggable width.
+- **Side by side**, the way an editor shows a diff: the base revision on the
+  left, the pull request's on the right, a rewritten line opposite its
+  replacement, and a striped filler where one side has nothing. `s` switches to
+  the unified column, and the choice sticks.
 - **Whole-file diffs**: both old and new line-number gutters stay correct across
   the whole file, not just inside hunks.
 - **Page-flow layout**: the code runs down the page as one long file, with the
@@ -105,6 +109,7 @@ The other route is to ask IT to allowlist the extension id, which needs a pinned
 | --- | --- |
 | `n` / `p` | next / previous change in the file |
 | `]` / `[` (or `j` / `k`) | next / previous file |
+| `s` | toggle side by side vs unified |
 | `w` | toggle whole file vs changes only |
 | `v` | mark the current file viewed |
 | `/` | focus the file filter |

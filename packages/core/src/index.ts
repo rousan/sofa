@@ -20,6 +20,8 @@ export type {
 
 export { parseUnifiedDiff, normalizePath } from './diff.ts';
 export { buildFileModel, mergeFullFile, rowsFromHunks, findChangeAnchors } from './model.ts';
+export { buildSplitRows } from './split.ts';
+export type { SplitRow } from './split.ts';
 export { highlightLine, languageFor, newHighlightState } from './highlight.ts';
 export type { HighlightState, Language } from './highlight.ts';
 export { escapeHtml, formatCount, splitLines, debounce } from './text.ts';

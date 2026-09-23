@@ -1219,3 +1219,126 @@ html[data-color-mode="dark"] .sofa-root {
 .sofa-review-foot .sofa-compose-error {
   padding-bottom: 8px;
 }
+
+/*
+ * The side-by-side view: old revision left, new right.
+ *
+ * Every row uses the same four-column template and the same width, so the
+ * columns line up down the whole file - which is the only reason the view is
+ * worth having, since a reader is comparing two points at the same height.
+ * The width has a floor so each column keeps a usable measure in a narrow
+ * panel, and the file body scrolls horizontally below that.
+ */
+.sofa-srow {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px minmax(0, 1fr);
+  width: max(100%, 1500px);
+  font-family: var(--sofa-font-mono);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.sofa-srow .sofa-gutter {
+  position: static;
+}
+
+/*
+ * Each side scrolls on its own for a line longer than the column, with no
+ * scrollbar drawn: one per row would be unreadable, and a trackpad or
+ * shift-wheel reaches the rest of the line without it. A really long line is
+ * what the unified view (s) is for.
+ */
+.sofa-side {
+  position: relative;
+  padding-left: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.sofa-side::-webkit-scrollbar {
+  display: none;
+}
+
+.sofa-side .sofa-code {
+  padding-left: 0;
+}
+
+/* The new-revision gutter opens the right half, so it takes the divider. */
+.sofa-srow .sofa-gutter:nth-child(3) {
+  border-left: 1px solid var(--sofa-border-muted);
+}
+
+.sofa-side--add {
+  background: var(--sofa-add-bg);
+}
+
+.sofa-gutter--add {
+  background: var(--sofa-add-gutter);
+}
+
+.sofa-side--del {
+  background: var(--sofa-del-bg);
+}
+
+.sofa-gutter--del {
+  background: var(--sofa-del-gutter);
+}
+
+/*
+ * A side with nothing opposite it. Striped rather than blank, so it reads as
+ * "the file has no line here" instead of an empty line of code - the same
+ * signal an editor's diff view gives.
+ */
+.sofa-side--none {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 5px,
+    var(--sofa-bg-muted) 5px,
+    var(--sofa-bg-muted) 10px
+  );
+}
+
+.sofa-gutter--none {
+  background: var(--sofa-bg-muted);
+}
+
+.sofa-srow--sep,
+.sofa-srow--skip {
+  display: block;
+  width: auto;
+  background: var(--sofa-bg-muted);
+  color: var(--sofa-text-muted);
+  padding: 2px 16px;
+  border-top: 1px solid var(--sofa-border-muted);
+  border-bottom: 1px solid var(--sofa-border-muted);
+  font-family: var(--sofa-font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sofa-srow.is-flash {
+  animation: sofa-flash 0.7s ease-out;
+}
+
+/* The add-comment button belongs to its column here, not to the whole row. */
+.sofa-side .sofa-row-comment {
+  left: 0;
+}
+
+.sofa-side:hover .sofa-row-comment {
+  display: flex;
+}
+
+/*
+ * A comment sits under the pair rather than inside one column: half the width
+ * of an already-halved column is not enough to read a paragraph in.
+ */
+.sofa-file-body--split .sofa-thread,
+.sofa-file-body--split .sofa-inline-compose {
+  max-width: 900px;
+}

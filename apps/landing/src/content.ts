@@ -45,6 +45,10 @@ export interface SpecRow {
  */
 export const HOW_IT_WORKS: SpecRow[] = [
   {
+    term: 'Side by side',
+    detail: 'Base revision left, pull request right, each rewritten line opposite its replacement. One key switches to the unified column.',
+  },
+  {
     term: 'Whole files',
     detail: 'Fetches the file at the head commit and renders all of it, with the diff spliced in. One key toggles back to changes only.',
   },
@@ -110,6 +114,7 @@ export interface Shortcut {
 export const SHORTCUTS: Shortcut[] = [
   { keys: ['n', 'p'], action: 'Next or previous change' },
   { keys: [']', '['], action: 'Next or previous file' },
+  { keys: ['s'], action: 'Side by side or unified' },
   { keys: ['w'], action: 'Whole file or changes only' },
   { keys: ['v'], action: 'Mark the file viewed' },
   { keys: ['/'], action: 'Filter files' },

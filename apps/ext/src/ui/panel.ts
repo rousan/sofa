@@ -16,7 +16,7 @@ import * as forge from '../github.ts';
 import type { DiffFile, FileModel, PrContext, ReviewThread, ViewMode } from '@sofa/core';
 import type { CommentTarget, ReadError, ReviewEvent, WriteResult } from '../github.ts';
 import type { ReviewDraft } from '../draft.ts';
-import type { ViewerHandle } from './viewer.ts';
+import type { DiffLayout, ViewerHandle } from './viewer.ts';
 
 /**
  * Sidebar width bounds, in pixels, honoured by the drag handle.
@@ -28,6 +28,14 @@ const MAX_SIDEBAR = 720;
  * Storage key holding the user's chosen sidebar width.
  */
 const WIDTH_KEY = 'sofa:sidebarWidth';
+
+/**
+ * Storage key holding the user's choice of side-by-side or unified.
+ *
+ * Kept because it is a reading habit rather than a per-file decision: someone
+ * who reviews side by side wants that on every file, in every pull request.
+ */
+const LAYOUT_KEY = 'sofa:layout';
 
 /**
  * How many files to fetch at once while warming the cache.
@@ -331,6 +339,9 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   let selectedPath: string | null = null;
   let filter = '';
   let mode: ViewMode = 'full';
+  // Side by side unless the reader has said otherwise, because a rewritten line
+  // is far easier to read opposite its replacement than above it.
+  let layout: DiffLayout = readSetting(LAYOUT_KEY) === 'unified' ? 'unified' : 'split';
   let viewerHandle: ViewerHandle | null = null;
   let loadToken = 0;
   let loaded = false;
@@ -361,7 +372,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       sidebarMeta,
       el('div', {
         className: 'sofa-shortcuts',
-        text: 'n / p change · [ / ] file · w whole file · v viewed · / filter · esc close',
+        text: 'n / p change · [ / ] file · s side by side · w whole file · v viewed · / filter · esc close',
       }),
     ],
   });
@@ -584,6 +595,12 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       },
       onModeChange: (nextMode) => {
         mode = nextMode;
+        void selectFile(path);
+      },
+      layout,
+      onLayoutChange: (next) => {
+        layout = next;
+        writeSetting(LAYOUT_KEY, next);
         void selectFile(path);
       },
       drafts: draft.comments,
@@ -882,6 +899,10 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     else if (event.key === '[' || event.key === 'k') moveFile(-1);
     else if (event.key === 'w') {
       mode = mode === 'full' ? 'changes' : 'full';
+      if (selectedPath) void selectFile(selectedPath);
+    } else if (event.key === 's') {
+      layout = layout === 'split' ? 'unified' : 'split';
+      writeSetting(LAYOUT_KEY, layout);
       if (selectedPath) void selectFile(selectedPath);
     } else if (event.key === '/') {
       event.preventDefault();

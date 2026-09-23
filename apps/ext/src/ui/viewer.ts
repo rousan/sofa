@@ -7,6 +7,7 @@
  * difference is between an instant file switch and a visible stall.
  */
 import {
+  buildSplitRows,
   escapeHtml,
   formatCount,
   highlightLine,
@@ -22,6 +23,14 @@ import { createCompose } from './compose.ts';
 import type { CommentTarget } from '../github.ts';
 import type { DraftComment } from '../draft.ts';
 import type { DiffFile, DiffSide, FileModel, PrContext, ReviewThread, Row, ViewMode } from '@sofa/core';
+
+/**
+ * Which way the diff is laid out.
+ *
+ * `split` is the side-by-side view - old revision left, new right - and
+ * `unified` is the single column a diff is written as.
+ */
+export type DiffLayout = 'split' | 'unified';
 
 /**
  * Above this many rows the viewer refuses to lay out the whole file and shows
@@ -48,6 +57,10 @@ export interface ViewerOptions {
   headSha: string | null;
   /** Whether to lay out the whole file or only the changed regions. */
   mode: ViewMode;
+  /** Side-by-side or one column. */
+  layout: DiffLayout;
+  /** Called when the layout toggle is used. */
+  onLayoutChange: (layout: DiffLayout) => void;
   /** Whether this file is currently marked viewed. */
   isViewed: boolean;
   /** Called when the viewed checkbox changes. */
@@ -146,14 +159,7 @@ function renderRows(
   const state = newHighlightState();
   const keep = visibleIndexes(rows, mode);
   const { byRow } = indexThreadsForFile(threads, path);
-  const draftsByRow = new Map<string, DraftComment[]>();
-  for (const draft of drafts) {
-    if (draft.path !== path) continue;
-    const key = rowKey(draft.side, draft.line);
-    const list = draftsByRow.get(key);
-    if (list) list.push(draft);
-    else draftsByRow.set(key, [draft]);
-  }
+  const draftsByRow = draftsByRowFor(drafts, path);
   const parts: string[] = [];
   let skipping = false;
 
@@ -210,6 +216,147 @@ function renderRows(
       }
     }
   });
+
+  return parts.join('');
+}
+
+/**
+ * Group a file's draft comments by the row they belong to.
+ *
+ * @param drafts - Every pending comment in the pull request.
+ * @param path - The file being rendered.
+ * @returns Pending comments keyed the same way threads are.
+ */
+function draftsByRowFor(drafts: DraftComment[], path: string): Map<string, DraftComment[]> {
+  const byRow = new Map<string, DraftComment[]>();
+  for (const draft of drafts) {
+    if (draft.path !== path) continue;
+    const key = rowKey(draft.side, draft.line);
+    const list = byRow.get(key);
+    if (list) list.push(draft);
+    else byRow.set(key, [draft]);
+  }
+  return byRow;
+}
+
+/**
+ * Render one side of a side-by-side row.
+ *
+ * A side with no row is a filler: the other column added or removed a line, and
+ * this one has nothing at that point. It is drawn as an inert striped cell so
+ * the eye can see that the file has no counterpart there, rather than a blank
+ * that reads as an empty line of code.
+ *
+ * @param row - The line to draw, or null for a filler.
+ * @param side - Which revision this column shows.
+ * @param code - The line's already-highlighted markup.
+ * @returns The cell's markup.
+ */
+function renderSide(row: Row | null, side: DiffSide, code: string): string {
+  if (!row) {
+    return `<span class="sofa-gutter sofa-gutter--none"></span>`
+      + '<span class="sofa-side sofa-side--none"></span>';
+  }
+
+  const number = side === 'LEFT' ? row.oldNo : row.newNo;
+  const kind = row.kind === 'add' || row.kind === 'del' ? row.kind : 'ctx';
+  // A line only takes a comment where it actually exists, which is what having
+  // a number on this side means.
+  const anchor = number !== null ? ` data-side="${side}" data-line="${number}"` : '';
+  const button = number !== null
+    ? '<button type="button" class="sofa-row-comment" title="Add a comment on this line"'
+      + ' aria-label="Add a comment on this line">+</button>'
+    : '';
+
+  return `<span class="sofa-gutter sofa-gutter--${kind}">${number ?? ''}</span>`
+    + `<span class="sofa-side sofa-side--${kind}"${anchor}>`
+    + button
+    + `<span class="sofa-code">${code}</span>`
+    + '</span>';
+}
+
+/**
+ * Build the markup for a file laid out side by side.
+ *
+ * The two columns are highlighted independently, because they are two different
+ * revisions of the file: a block comment opened on the left may never have
+ * existed on the right, and one shared highlighter state would leak that.
+ *
+ * @param rows - The file's rows.
+ * @param path - File path, used to pick the highlighter language.
+ * @param mode - Either whole file or changes only.
+ * @param threads - The pull request's review threads.
+ * @param drafts - Comments written but not yet submitted.
+ * @returns The rows' HTML.
+ */
+function renderSplitRows(
+  rows: Row[],
+  path: string,
+  mode: ViewMode,
+  threads: ReviewThread[],
+  drafts: DraftComment[],
+): string {
+  const lang = languageFor(path);
+  const leftState = newHighlightState();
+  const rightState = newHighlightState();
+  const keep = visibleIndexes(rows, mode);
+  const { byRow } = indexThreadsForFile(threads, path);
+  const draftRows = draftsByRowFor(drafts, path);
+  const parts: string[] = [];
+  let skipping = false;
+
+  for (const pair of buildSplitRows(rows)) {
+    // Highlighting runs for every line, hidden ones included, because the
+    // highlighter carries block state from one line to the next.
+    const leftCode = !pair.separator && pair.left ? highlightLine(pair.left.text, lang, leftState) : '';
+    const rightCode = !pair.separator && pair.right ? highlightLine(pair.right.text, lang, rightState) : '';
+
+    const visible = !keep
+      || (pair.leftIndex !== null && keep.has(pair.leftIndex))
+      || (pair.rightIndex !== null && keep.has(pair.rightIndex));
+    if (!visible) {
+      skipping = true;
+      continue;
+    }
+    if (skipping) {
+      parts.push('<div class="sofa-srow sofa-srow--skip"><span>unchanged lines hidden</span></div>');
+      skipping = false;
+    }
+
+    if (pair.separator) {
+      const text = pair.left ? escapeHtml(pair.left.text) : '';
+      parts.push(`<div class="sofa-srow sofa-srow--sep"><span>${text}</span></div>`);
+      continue;
+    }
+
+    // Marked as a change when either column changed, so the next-change jump
+    // and the flash treat a side-by-side row the same as a unified one.
+    const changed = pair.left?.kind === 'del' || pair.right?.kind === 'add';
+    parts.push(
+      `<div class="sofa-srow${changed ? ' sofa-srow--change' : ''}">`
+        + renderSide(pair.left, 'LEFT', leftCode)
+        + renderSide(pair.right, 'RIGHT', rightCode)
+        + '</div>',
+    );
+
+    // Threads and drafts run the full width under the pair rather than inside
+    // one column, so a long comment does not squeeze the code into half a page.
+    const here = [
+      ...(pair.right?.newNo != null ? byRow.get(rowKey('RIGHT', pair.right.newNo)) ?? [] : []),
+      ...(pair.left?.oldNo != null && pair.left.kind === 'del'
+        ? byRow.get(rowKey('LEFT', pair.left.oldNo)) ?? []
+        : []),
+    ];
+    for (const thread of here) parts.push(renderThread(thread));
+
+    const pending = [
+      ...(pair.right?.newNo != null ? draftRows.get(rowKey('RIGHT', pair.right.newNo)) ?? [] : []),
+      ...(pair.left?.oldNo != null && pair.left.kind === 'del'
+        ? draftRows.get(rowKey('LEFT', pair.left.oldNo)) ?? []
+        : []),
+    ];
+    for (const draft of pending) parts.push(renderDraft(draft));
+  }
 
   return parts.join('');
 }
@@ -296,7 +443,8 @@ function renderThread(thread: ReviewThread): string {
 function collectAnchors(body: HTMLElement): HTMLElement[] {
   const anchors: HTMLElement[] = [];
   let previous: Element | null = null;
-  for (const node of body.querySelectorAll<HTMLElement>('.sofa-row--add, .sofa-row--del')) {
+  const selector = '.sofa-row--add, .sofa-row--del, .sofa-srow--change';
+  for (const node of body.querySelectorAll<HTMLElement>(selector)) {
     if (node.previousElementSibling !== previous) anchors.push(node);
     previous = node;
   }
@@ -325,6 +473,16 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
   });
   modeToggle.addEventListener('click', () => options.onModeChange(mode === 'full' ? 'changes' : 'full'));
 
+  // Named for what pressing it does, like the mode toggle beside it.
+  const layoutToggle = el('button', {
+    className: 'sofa-btn',
+    text: options.layout === 'split' ? 'Unified' : 'Side by side',
+    attrs: { type: 'button', title: 'Toggle side-by-side or unified (s)' },
+  });
+  layoutToggle.addEventListener('click', () => {
+    options.onLayoutChange(options.layout === 'split' ? 'unified' : 'split');
+  });
+
   const viewedBox = el('input', { attrs: { type: 'checkbox' } });
   viewedBox.checked = options.isViewed;
   viewedBox.addEventListener('change', () => options.onToggleViewed(file.path, viewedBox.checked));
@@ -351,6 +509,7 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
         children: [
           prevButton,
           nextButton,
+          layoutToggle,
           modeToggle,
           el('a', {
             className: 'sofa-btn',
@@ -392,7 +551,10 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
   } else if (!model.rows.length) {
     body.appendChild(el('p', { className: 'sofa-empty', text: 'No textual changes in this file.' }));
   } else {
-    body.innerHTML = renderRows(model.rows, file.path, mode, options.threads, options.drafts);
+    body.classList.toggle('sofa-file-body--split', options.layout === 'split');
+    body.innerHTML = options.layout === 'split'
+      ? renderSplitRows(model.rows, file.path, mode, options.threads, options.drafts)
+      : renderRows(model.rows, file.path, mode, options.threads, options.drafts);
   }
 
   mount.textContent = '';
@@ -482,9 +644,12 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
 
     const addButton = target.closest<HTMLElement>('.sofa-row-comment');
     if (!addButton) return;
-    const row = addButton.closest<HTMLElement>('.sofa-row');
-    const side = row?.dataset['side'] as DiffSide | undefined;
-    const line = Number(row?.dataset['line']);
+    // The anchor is on the row in the unified view and on the column in the
+    // side-by-side one, so it is found by attribute rather than by class.
+    const anchor = addButton.closest<HTMLElement>('[data-side][data-line]');
+    const row = addButton.closest<HTMLElement>('.sofa-row, .sofa-srow');
+    const side = anchor?.dataset['side'] as DiffSide | undefined;
+    const line = Number(anchor?.dataset['line']);
     if (!row || !side || !Number.isFinite(line)) return;
 
     const commentTarget: CommentTarget = { path: file.path, line, side };
