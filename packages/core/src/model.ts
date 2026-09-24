@@ -66,6 +66,9 @@ export function mergeFullFile(file: DiffFile, headLines: string[]): { rows: Row[
   let delta = 0;
   let checked = 0;
   let mismatched = 0;
+  // Counted separately so a caller can tell a whitespace-only drift from a
+  // real mismatch when deciding whether to trust the merge.
+  let whitespaceOnly = 0;
 
   for (const hunk of hunks) {
     while (cursor < hunk.newStart && cursor <= headLines.length) {
@@ -84,7 +87,12 @@ export function mergeFullFile(file: DiffFile, headLines: string[]): { rows: Row[
       const headText = headLines[newNo - 1];
       if (headText !== undefined) {
         checked++;
-        if (headText !== line.text) mismatched++;
+        if (headText !== line.text) {
+          // A difference that vanishes once whitespace is ignored is almost
+          // always a CRLF or tab-width difference, not a wrong revision.
+          if (headText.replace(/\s+/g, '') === line.text.replace(/\s+/g, '')) whitespaceOnly++;
+          else mismatched++;
+        }
       }
       rows.push({
         kind: line.kind,
@@ -107,7 +115,8 @@ export function mergeFullFile(file: DiffFile, headLines: string[]): { rows: Row[
     cursor++;
   }
 
-  return { rows, reliable: checked === 0 || mismatched / checked <= 0.02 };
+  const threshold = whitespaceOnly > mismatched ? 0.05 : 0.02;
+  return { rows, reliable: checked === 0 || mismatched / checked <= threshold };
 }
 
 /**
