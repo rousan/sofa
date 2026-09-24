@@ -82,7 +82,7 @@ export const HOW_IT_WORKS: SpecRow[] = [
  * What it needs to run.
  */
 export const REQUIREMENTS: SpecRow[] = [
-  { term: 'Browser', detail: 'Chrome, or any Chromium browser that takes Manifest V3 extensions.' },
+  { term: 'Browser', detail: 'Chrome, Edge, Brave, Arc or any other Chromium browser that loads Manifest V3 extensions, on macOS, Windows and Linux alike, with no separate build for any of them.' },
   { term: 'GitHub', detail: 'github.com out of the box, public and private repositories alike.' },
   { term: 'Enterprise', detail: 'Click the toolbar icon, type your company GitHub hostname, accept the Chrome prompt. Once, per host.' },
   { term: 'Token', detail: 'A fine-grained token with Contents: Read and Pull requests: Read and write, pasted into the popup once per host. Required, and it never leaves your browser.' },
