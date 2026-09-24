@@ -4,3 +4,4 @@ dist/
 apps/ext/test/fake/
 apps/ext/sofa-*.zip
 .DS_Store
+*.log
