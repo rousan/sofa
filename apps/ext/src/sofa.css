@@ -1226,13 +1226,14 @@ html[data-color-mode="dark"] .sofa-root {
  * Every row uses the same four-column template and the same width, so the
  * columns line up down the whole file - which is the only reason the view is
  * worth having, since a reader is comparing two points at the same height.
- * The width has a floor so each column keeps a usable measure in a narrow
- * panel, and the file body scrolls horizontally below that.
+ * The width is exactly the viewer's, never more: a fixed floor pushed the right
+ * column off screen inside GitHub's page, where the viewer is far narrower than
+ * a full window. A line longer than its half scrolls within that half instead.
  */
 .sofa-srow {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 52px minmax(0, 1fr);
-  width: max(100%, 1500px);
+  grid-template-columns: 44px minmax(0, 1fr) 44px minmax(0, 1fr);
+  width: 100%;
   font-family: var(--sofa-font-mono);
   font-size: 12px;
   line-height: 20px;
