@@ -253,9 +253,12 @@ function draftsByRowFor(drafts: DraftComment[], path: string): Map<string, Draft
  * @returns The cell's markup.
  */
 function renderSide(row: Row | null, side: DiffSide, code: string): string {
+  // The column class is what the horizontal scroll moves, so every cell in a
+  // column carries it, fillers included.
+  const column = side === 'LEFT' ? 'sofa-side--l' : 'sofa-side--r';
   if (!row) {
     return `<span class="sofa-gutter sofa-gutter--none"></span>`
-      + '<span class="sofa-side sofa-side--none"></span>';
+      + `<span class="sofa-side ${column} sofa-side--none"></span>`;
   }
 
   const number = side === 'LEFT' ? row.oldNo : row.newNo;
@@ -269,7 +272,7 @@ function renderSide(row: Row | null, side: DiffSide, code: string): string {
     : '';
 
   return `<span class="sofa-gutter sofa-gutter--${kind}">${number ?? ''}</span>`
-    + `<span class="sofa-side sofa-side--${kind}"${anchor}>`
+    + `<span class="sofa-side ${column} sofa-side--${kind}"${anchor}>`
     + button
     + `<span class="sofa-code">${code}</span>`
     + '</span>';
@@ -435,6 +438,65 @@ function renderThread(thread: ReviewThread): string {
 }
 
 /**
+ * Make a sideways scroll over either half of the side-by-side view move that
+ * whole half, the way an editor's diff does.
+ *
+ * Each row is its own element, so a cell that scrolled natively moved one line
+ * and left the rest of the column where it was. Instead the rows never scroll:
+ * the view keeps one offset per column, publishes it as a custom property, and
+ * every line of that column is translated by it in CSS. One style write moves
+ * thousands of lines, where scrolling each cell would mean one write per line.
+ *
+ * @param body - The rendered side-by-side rows.
+ */
+function scrollColumnsTogether(body: HTMLElement): void {
+  const offset = { l: 0, r: 0 };
+  // How far each column can travel. Measured on first use, because a reader who
+  // never scrolls sideways should not pay for a pass over every line.
+  const limit: { l: number | null; r: number | null } = { l: null, r: null };
+
+  /**
+   * Work out how far one column can move before its longest line is fully shown.
+   *
+   * @param column - Which half, `l` or `r`.
+   * @returns The largest offset, in pixels; zero when every line already fits.
+   */
+  function measure(column: 'l' | 'r'): number {
+    let widest = 0;
+    let visible = 0;
+    for (const cell of body.querySelectorAll<HTMLElement>(`.sofa-side--${column}`)) {
+      if (!visible) visible = cell.clientWidth;
+      const code = cell.querySelector<HTMLElement>('.sofa-code');
+      if (code) widest = Math.max(widest, code.offsetWidth);
+    }
+    // The cell's own left padding and a little room past the last character,
+    // so the end of the longest line is not flush against the divider.
+    return Math.max(0, widest + 6 + 24 - visible);
+  }
+
+  body.addEventListener('wheel', (event) => {
+    const cell = (event.target as Element | null)?.closest('.sofa-side--l, .sofa-side--r');
+    if (!cell) return;
+
+    // A trackpad reports sideways movement as deltaX; a mouse wheel does it
+    // with shift held, which some platforms leave as deltaY.
+    const sideways = event.deltaX !== 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0;
+    // A mostly vertical gesture is the page scrolling, not this column.
+    if (!sideways || (!event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX))) return;
+
+    const column = cell.classList.contains('sofa-side--l') ? 'l' : 'r';
+    const max = limit[column] ??= measure(column);
+    const next = Math.min(max, Math.max(0, offset[column] + sideways));
+    if (next === offset[column]) return;
+
+    offset[column] = next;
+    body.style.setProperty(`--sofa-x-${column}`, `${next}px`);
+    // Consumed here, so the browser does not also treat it as a back-swipe.
+    event.preventDefault();
+  }, { passive: false });
+}
+
+/**
  * Collect the first row element of each run of changed rows.
  *
  * @param body - The rendered rows container.
@@ -582,6 +644,8 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
 
   prevButton.addEventListener('click', () => jumpToChange(-1));
   nextButton.addEventListener('click', () => jumpToChange(1));
+
+  if (options.layout === 'split') scrollColumnsTogether(body);
 
   // One box at a time, the way GitHub behaves: opening a second closes the
   // first, so a half-written comment cannot be left somewhere off screen.

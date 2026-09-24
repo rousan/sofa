@@ -38,6 +38,11 @@ const WIDTH_KEY = 'sofa:sidebarWidth';
 const LAYOUT_KEY = 'sofa:layout';
 
 /**
+ * Space kept between the panel and each edge of the window when it widens.
+ */
+const WIDE_GUTTER = 16;
+
+/**
  * How many files to fetch at once while warming the cache.
  *
  * Enough to hide the latency of a click, few enough to leave the browser's
@@ -390,24 +395,26 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
   const banner = el('div', { className: 'sofa-banner' });
   banner.hidden = true;
 
+  const toolbar = el('header', {
+    className: 'sofa-toolbar',
+    children: [
+      el('div', {
+        className: 'sofa-title',
+        children: [
+          el('span', { className: 'sofa-logo', text: 'Sofa' }),
+          el('span', { className: 'sofa-subject', text: `${ctx.owner}/${ctx.repo} #${ctx.number}` }),
+        ],
+      }),
+      toolbarMeta,
+      el('div', { className: 'sofa-toolbar-actions', children: [reloadButton, reviewButton, closeButton] }),
+    ],
+  });
+
   const element = el('div', {
     className: 'sofa-root',
     attrs: { 'data-sofa': 'panel' },
     children: [
-      el('header', {
-        className: 'sofa-toolbar',
-        children: [
-          el('div', {
-            className: 'sofa-title',
-            children: [
-              el('span', { className: 'sofa-logo', text: 'Sofa' }),
-              el('span', { className: 'sofa-subject', text: `${ctx.owner}/${ctx.repo} #${ctx.number}` }),
-            ],
-          }),
-          toolbarMeta,
-          el('div', { className: 'sofa-toolbar-actions', children: [reloadButton, reviewButton, closeButton] }),
-        ],
-      }),
+      toolbar,
       banner,
       el('div', { className: 'sofa-body', children: [sidebar, resizer, viewerMount] }),
     ],
@@ -601,6 +608,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       onLayoutChange: (next) => {
         layout = next;
         writeSetting(LAYOUT_KEY, next);
+        fitWidth();
         void selectFile(path);
       },
       drafts: draft.comments,
@@ -903,6 +911,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     } else if (event.key === 's') {
       layout = layout === 'split' ? 'unified' : 'split';
       writeSetting(LAYOUT_KEY, layout);
+      fitWidth();
       if (selectedPath) void selectFile(selectedPath);
     } else if (event.key === '/') {
       event.preventDefault();
@@ -971,6 +980,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
       remounting = true;
       try {
         applyMountPlan(element, plan, hiddenSiblings);
+        fitWidth();
       } finally {
         remounting = false;
       }
@@ -990,6 +1000,100 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
     hostObserver = new MutationObserver(debounce(remountIfNeeded, 150));
     hostObserver.observe(document.body, { childList: true, subtree: true });
   }
+
+  /**
+   * Stretch the panel to the window's width while it shows the diff side by side.
+   *
+   * GitHub centres its content in a column around 1280px wide, which leaves each
+   * half of a side-by-side diff with a few hundred pixels of code. The panel
+   * stays in the page's flow, so the tab bar and header are untouched; it only
+   * pulls its left edge out to the window's and widens to match. In the unified
+   * view one column already fits, so the page's own width is kept.
+   */
+  function fitWidth(): void {
+    // Measured from the natural position, so a stale offset cannot compound.
+    element.style.left = '';
+    element.style.width = '';
+    element.style.flex = '';
+    element.style.maxWidth = '';
+    if (layout !== 'split' || !panel.isOpen() || !element.classList.contains('sofa-root--inline')) return;
+
+    // clientWidth excludes the vertical scrollbar, which 100vw would not, so
+    // the panel never makes the page scroll sideways.
+    const target = document.documentElement.clientWidth - WIDE_GUTTER * 2;
+    if (target <= element.getBoundingClientRect().width) return;
+
+    // GitHub's container is a flex row on some pages, which would shrink the
+    // panel straight back to the column it came from, and a max-width would
+    // cap it; both are lifted for as long as the panel is wide.
+    element.style.width = `${target}px`;
+    element.style.flex = '0 0 auto';
+    element.style.maxWidth = 'none';
+
+    // The container may centre a child wider than itself, so the panel's
+    // landing spot is only known once it is wide. It is then shifted with a
+    // relative offset rather than a margin: an offset is applied after layout,
+    // so the container cannot re-centre it the way it would redistribute a
+    // margin, and one measurement gives the exact correction.
+    const landed = element.getBoundingClientRect().left;
+    element.style.left = `${WIDE_GUTTER - landed}px`;
+  }
+
+  window.addEventListener('resize', debounce(fitWidth, 100));
+
+  /**
+   * How far down the window GitHub's own pinned header reaches, if it has one.
+   *
+   * GitHub pins a compact pull request header to the top of the window once the
+   * page scrolls, and anything of Sofa's pinned at the very top would slide
+   * underneath it and be hidden. So the element under the top edge of the
+   * window is checked, and if it or an ancestor is fixed or sticky and is not
+   * part of Sofa, its bottom edge is where Sofa's pinned rows start instead.
+   *
+   * @returns The offset from the top of the window, in pixels.
+   */
+  function pinnedHeaderBottom(): number {
+    const x = Math.max(1, element.getBoundingClientRect().left + 8);
+    let bottom = 0;
+    for (const hit of document.elementsFromPoint(x, 1)) {
+      if (element.contains(hit)) continue;
+      for (let node: Element | null = hit; node && node !== document.body; node = node.parentElement) {
+        const position = getComputedStyle(node).position;
+        if (position !== 'fixed' && position !== 'sticky') continue;
+        const rect = node.getBoundingClientRect();
+        // Only something actually sitting on the top edge counts, not a sticky
+        // element further down the page that happens to share a column.
+        if (rect.top <= 1 && rect.bottom > 0 && rect.bottom < window.innerHeight / 3) {
+          bottom = Math.max(bottom, rect.bottom);
+        }
+        break;
+      }
+    }
+    return Math.round(bottom);
+  }
+
+  let pinFrame = 0;
+
+  /**
+   * Keep Sofa's pinned rows below GitHub's, rechecked once per animation frame
+   * while scrolling, since GitHub's header only appears part way down the page.
+   */
+  function updatePinnedOffset(): void {
+    if (pinFrame) return;
+    pinFrame = requestAnimationFrame(() => {
+      pinFrame = 0;
+      if (!panel.isOpen() || !element.classList.contains('sofa-root--inline')) return;
+      element.style.setProperty('--sofa-top', `${pinnedHeaderBottom()}px`);
+    });
+  }
+
+  window.addEventListener('scroll', updatePinnedOffset, { passive: true });
+
+  // The file header and tree are pinned below the toolbar, so they need its
+  // real height, which changes when the toolbar wraps on a narrow window.
+  new ResizeObserver(() => {
+    element.style.setProperty('--sofa-toolbar-h', `${toolbar.offsetHeight}px`);
+  }).observe(toolbar);
 
   const panel: Panel = {
     ctx,
@@ -1012,6 +1116,7 @@ function createPanel(ctx: PrContext, options: PanelOptions): Panel {
         document.documentElement.classList.add('sofa-locked');
       }
       element.classList.add('is-open');
+      fitWidth();
       void load(false);
     },
     close() {

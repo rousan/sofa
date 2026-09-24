@@ -1246,25 +1246,28 @@ html[data-color-mode="dark"] .sofa-root {
 }
 
 /*
- * Each side scrolls on its own for a line longer than the column, with no
- * scrollbar drawn: one per row would be unreadable, and a trackpad or
- * shift-wheel reaches the rest of the line without it. A really long line is
- * what the unified view (s) is for.
+ * A side never scrolls on its own. A sideways scroll over a column moves the
+ * whole column, by translating every line in it by one shared offset that the
+ * viewer publishes as --sofa-x-l or --sofa-x-r. The code has to be an inline
+ * block for the transform to apply; an inline span ignores transforms.
  */
 .sofa-side {
   position: relative;
   padding-left: 6px;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-
-.sofa-side::-webkit-scrollbar {
-  display: none;
+  overflow: hidden;
 }
 
 .sofa-side .sofa-code {
+  display: inline-block;
   padding-left: 0;
+}
+
+.sofa-side--l .sofa-code {
+  transform: translateX(calc(var(--sofa-x-l, 0px) * -1));
+}
+
+.sofa-side--r .sofa-code {
+  transform: translateX(calc(var(--sofa-x-r, 0px) * -1));
 }
 
 /* The new-revision gutter opens the right half, so it takes the divider. */
@@ -1342,4 +1345,26 @@ html[data-color-mode="dark"] .sofa-root {
 .sofa-file-body--split .sofa-thread,
 .sofa-file-body--split .sofa-inline-compose {
   max-width: 900px;
+}
+
+/*
+ * Pinned rows in the inline layout: the Sofa toolbar first, then the file tree
+ * and the file header beneath it, all below whatever GitHub has pinned at the
+ * top of the window. The two offsets are measured by the panel, because GitHub's
+ * header only appears once the page has scrolled and the toolbar can wrap.
+ */
+.sofa-root--inline .sofa-toolbar {
+  position: sticky;
+  top: var(--sofa-top, 0px);
+  z-index: 4;
+  border-radius: 6px 6px 0 0;
+}
+
+.sofa-root--inline .sofa-sidebar {
+  top: calc(var(--sofa-top, 0px) + var(--sofa-toolbar-h, 45px));
+  max-height: calc(100vh - var(--sofa-top, 0px) - var(--sofa-toolbar-h, 45px));
+}
+
+.sofa-root--inline .sofa-file-header {
+  top: calc(var(--sofa-top, 0px) + var(--sofa-toolbar-h, 45px));
 }
