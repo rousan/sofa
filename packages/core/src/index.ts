@@ -31,6 +31,7 @@ export {
   parseReviewComments,
   buildThreads,
   indexThreadsForFile,
+  isCommentable,
   rowKey,
 } from './review.ts';
 export type { DiffSide, ReviewComment, ReviewThread } from './review.ts';

@@ -3,7 +3,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildThreads, indexThreadsForFile, parseReviewComments, rowKey } from '../src/review.ts';
+import { buildThreads, indexThreadsForFile, isCommentable, parseReviewComments, rowKey } from '../src/review.ts';
 
 /**
  * Build one comment in the shape the API returns.
@@ -97,4 +97,21 @@ test('indexes threads by side and line, and sets outdated ones aside', () => {
   assert.equal(detached[0]?.id, 3);
   // The other file's thread is not this file's problem.
   assert.equal([...byRow.values()].flat().some((t) => t.path !== 'src/a.ts'), false);
+});
+
+test('accepts a comment only inside a hunk, on the side it is numbered for', () => {
+  // One hunk: old lines 10-14, new lines 10-16.
+  const hunks = [{ oldStart: 10, oldCount: 5, newStart: 10, newCount: 7, section: '', lines: [] }];
+  assert.equal(isCommentable(hunks, 'RIGHT', 10), true);
+  assert.equal(isCommentable(hunks, 'RIGHT', 16), true);
+  assert.equal(isCommentable(hunks, 'RIGHT', 17), false);
+  assert.equal(isCommentable(hunks, 'RIGHT', 9), false);
+  assert.equal(isCommentable(hunks, 'LEFT', 14), true);
+  assert.equal(isCommentable(hunks, 'LEFT', 15), false);
+});
+
+test('accepts nothing on the old side of a new file', () => {
+  const hunks = [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 3, section: '', lines: [] }];
+  assert.equal(isCommentable(hunks, 'LEFT', 0), false);
+  assert.equal(isCommentable(hunks, 'RIGHT', 2), true);
 });

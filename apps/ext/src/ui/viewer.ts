@@ -12,6 +12,7 @@ import {
   formatCount,
   highlightLine,
   indexThreadsForFile,
+  isCommentable,
   languageFor,
   newHighlightState,
   renderMarkdown,
@@ -22,7 +23,7 @@ import { blobUrl } from '../github.ts';
 import { createCompose } from './compose.ts';
 import type { CommentTarget } from '../github.ts';
 import type { DraftComment } from '../draft.ts';
-import type { DiffFile, DiffSide, FileModel, PrContext, ReviewThread, Row, ViewMode } from '@sofa/core';
+import type { DiffFile, DiffSide, FileModel, Hunk, PrContext, ReviewThread, Row, ViewMode } from '@sofa/core';
 
 /**
  * Which way the diff is laid out.
@@ -154,6 +155,7 @@ function renderRows(
   mode: ViewMode,
   threads: ReviewThread[],
   drafts: DraftComment[],
+  hunks: Hunk[],
 ): string {
   const lang = languageFor(path);
   const state = newHighlightState();
@@ -187,7 +189,11 @@ function renderRows(
       ? (row.oldNo !== null ? 'LEFT' : null)
       : (row.newNo !== null ? 'RIGHT' : null);
     const line = side === 'LEFT' ? row.oldNo : row.newNo;
-    const anchor = side && line !== null ? ` data-side="${side}" data-line="${line}"` : '';
+    // Only lines inside a hunk take a comment; the forge refuses the rest of
+    // the file, which Sofa shows but GitHub does not consider part of the diff.
+    const anchor = side && line !== null && isCommentable(hunks, side, line)
+      ? ` data-side="${side}" data-line="${line}"`
+      : '';
 
     parts.push(
       `<div class="sofa-row sofa-row--${row.kind}" data-index="${index}"${anchor}>`
@@ -252,7 +258,7 @@ function draftsByRowFor(drafts: DraftComment[], path: string): Map<string, Draft
  * @param code - The line's already-highlighted markup.
  * @returns The cell's markup.
  */
-function renderSide(row: Row | null, side: DiffSide, code: string): string {
+function renderSide(row: Row | null, side: DiffSide, code: string, hunks: Hunk[]): string {
   // The column class is what the horizontal scroll moves, so every cell in a
   // column carries it, fillers included.
   const column = side === 'LEFT' ? 'sofa-side--l' : 'sofa-side--r';
@@ -263,10 +269,11 @@ function renderSide(row: Row | null, side: DiffSide, code: string): string {
 
   const number = side === 'LEFT' ? row.oldNo : row.newNo;
   const kind = row.kind === 'add' || row.kind === 'del' ? row.kind : 'ctx';
-  // A line only takes a comment where it actually exists, which is what having
-  // a number on this side means.
-  const anchor = number !== null ? ` data-side="${side}" data-line="${number}"` : '';
-  const button = number !== null
+  // A line takes a comment only where it exists on this side and sits inside a
+  // hunk; the forge refuses a comment anywhere else in the file.
+  const commentable = number !== null && isCommentable(hunks, side, number);
+  const anchor = commentable ? ` data-side="${side}" data-line="${number}"` : '';
+  const button = commentable
     ? '<button type="button" class="sofa-row-comment" title="Add a comment on this line"'
       + ' aria-label="Add a comment on this line">+</button>'
     : '';
@@ -298,6 +305,7 @@ function renderSplitRows(
   mode: ViewMode,
   threads: ReviewThread[],
   drafts: DraftComment[],
+  hunks: Hunk[],
 ): string {
   const lang = languageFor(path);
   const leftState = newHighlightState();
@@ -337,8 +345,8 @@ function renderSplitRows(
     const changed = pair.left?.kind === 'del' || pair.right?.kind === 'add';
     parts.push(
       `<div class="sofa-srow${changed ? ' sofa-srow--change' : ''}">`
-        + renderSide(pair.left, 'LEFT', leftCode)
-        + renderSide(pair.right, 'RIGHT', rightCode)
+        + renderSide(pair.left, 'LEFT', leftCode, hunks)
+        + renderSide(pair.right, 'RIGHT', rightCode, hunks)
         + '</div>',
     );
 
@@ -615,8 +623,8 @@ export function renderFile(mount: HTMLElement, options: ViewerOptions): ViewerHa
   } else {
     body.classList.toggle('sofa-file-body--split', options.layout === 'split');
     body.innerHTML = options.layout === 'split'
-      ? renderSplitRows(model.rows, file.path, mode, options.threads, options.drafts)
-      : renderRows(model.rows, file.path, mode, options.threads, options.drafts);
+      ? renderSplitRows(model.rows, file.path, mode, options.threads, options.drafts, file.hunks)
+      : renderRows(model.rows, file.path, mode, options.threads, options.drafts, file.hunks);
   }
 
   mount.textContent = '';

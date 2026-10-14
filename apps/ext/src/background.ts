@@ -164,7 +164,22 @@ async function describeFailure(response: Response, method: string): Promise<stri
   }
 
   const detail = await response.json().catch(() => null) as { message?: unknown; errors?: unknown } | null;
-  if (detail && typeof detail.message === 'string') return detail.message;
+  if (detail && typeof detail.message === 'string') {
+    // "Validation Failed" on its own says nothing; the reason is in the errors
+    // array, as a message or as the field the forge objected to.
+    const reasons = Array.isArray(detail.errors)
+      ? detail.errors
+        .map((item: unknown) => {
+          if (typeof item === 'string') return item;
+          const entry = item as { message?: unknown; field?: unknown; code?: unknown } | null;
+          if (typeof entry?.message === 'string') return entry.message;
+          if (typeof entry?.field === 'string') return `${entry.field} ${String(entry.code ?? 'is invalid')}`;
+          return '';
+        })
+        .filter(Boolean)
+      : [];
+    return reasons.length ? `${detail.message}: ${reasons.join('; ')}` : detail.message;
+  }
   return `${response.status} ${response.statusText}`.trim() || 'The request failed.';
 }
 

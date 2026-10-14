@@ -6,6 +6,8 @@
  * part most likely to be wrong is the part that can be tested without a browser.
  */
 
+import type { Hunk } from './types.ts';
+
 /**
  * Which side of the diff a comment is attached to.
  *
@@ -203,4 +205,26 @@ export function indexThreadsForFile(
   }
 
   return { byRow, detached };
+}
+
+/**
+ * Whether a line can take a review comment.
+ *
+ * The forge only accepts a comment on a line that is part of the diff: inside
+ * one of the hunks, on the side the line is numbered for. Sofa renders the whole
+ * file, so most of its lines are outside every hunk, and a comment posted there
+ * is refused with a bare "Validation Failed". This is the forge's own rule, the
+ * same one that keeps its comment button off expanded context.
+ *
+ * @param hunks - The file's hunks, as the diff listed them.
+ * @param side - Which revision the line belongs to.
+ * @param line - The line number on that side.
+ * @returns True when a comment on that line will be accepted.
+ */
+export function isCommentable(hunks: Hunk[], side: DiffSide, line: number): boolean {
+  return hunks.some((hunk) => {
+    const start = side === 'LEFT' ? hunk.oldStart : hunk.newStart;
+    const count = side === 'LEFT' ? hunk.oldCount : hunk.newCount;
+    return line >= start && line < start + count;
+  });
 }
