@@ -109,7 +109,12 @@ async function callApi(
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const init: RequestInit = { method, headers };
+  // GitHub marks API responses cacheable for 60 seconds, so without this a list
+  // of comments re-read straight after posting one came from the browser cache
+  // and did not contain it. 'no-cache' still uses the cached copy, but only after
+  // asking GitHub with its ETag, and an unchanged answer (304) costs nothing
+  // against the rate limit.
+  const init: RequestInit = { method, headers, cache: 'no-cache' };
   if (payload !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(payload);
