@@ -47,24 +47,6 @@ one-off. Remove a host from the same popup to revoke it.
 Nothing about your forge is stored in the repository or the build: the grant
 lives in your own browser profile.
 
-### If your Chrome is managed
-
-A managed Chrome may refuse with *"Extension installation is blocked by policy"*.
-That policy is attached to the Google Chrome bundle, so an unmanaged Chrome for
-Testing (or plain Chromium) build loads the extension fine:
-
-```bash
-npx @puppeteer/browsers install chrome@stable
-"$HOME/.cache/puppeteer/chrome/"*/chrome-mac*/Google*/Contents/MacOS/Google* \
-  --user-data-dir="$HOME/.local/share/dev-chrome" --no-first-run
-```
-
-Then load `dist/` from `chrome://extensions` in that window: Developer mode works
-there, and both the extension and your logins persist in that profile.
-
-The other route is to ask IT to allowlist the extension id, which needs a pinned
-`key` in `manifest.json`.
-
 ## What it does
 
 - **Behaves like a native tab**: the panel renders where GitHub's own diff would,

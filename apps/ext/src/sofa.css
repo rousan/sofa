@@ -252,7 +252,7 @@ html[data-color-mode="dark"] .sofa-root {
   top: 0;
   align-self: flex-start;
   max-height: 100vh;
-  width: 320px;
+  width: 300px;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
@@ -1367,4 +1367,10 @@ html[data-color-mode="dark"] .sofa-root {
 
 .sofa-root--inline .sofa-file-header {
   top: calc(var(--sofa-top, 0px) + var(--sofa-toolbar-h, 45px));
+}
+
+/* Test: an added rule at the end of a long stylesheet. */
+.sofa-tree-row:focus-visible {
+  outline: 2px solid var(--sofa-accent);
+  outline-offset: -2px;
 }

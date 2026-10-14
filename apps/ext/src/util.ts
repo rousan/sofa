@@ -72,7 +72,7 @@ export function readSetting(key: string): string | null {
  */
 export function writeSetting(key: string, value: string): void {
   try {
-    localStorage.setItem(key, value);
+        localStorage.setItem(key, value);
   } catch {
     // Preferences are a convenience; a storage failure must not break the panel.
   }

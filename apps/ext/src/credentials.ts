@@ -50,7 +50,11 @@ export async function tokenFor(host: string): Promise<string | null> {
  */
 export async function saveToken(host: string, token: string): Promise<void> {
   const tokens = await loadTokens();
-  if (token.trim()) tokens[host] = token.trim();
+  const cleaned = token.trim();
+  // A pasted token often carries a trailing newline or a `Bearer ` prefix from
+  // wherever it was copied; neither belongs in the stored value.
+  const bare = cleaned.replace(/^Bearer\s+/i, '');
+  if (bare) tokens[host] = bare;
   else delete tokens[host];
   await chrome.storage.local.set({ [TOKEN_KEY]: tokens });
 }
@@ -65,6 +69,6 @@ export async function saveToken(host: string, token: string): Promise<void> {
  * @returns The base URL to build API paths on.
  */
 export function apiBase(host: string): string {
-  if (host === 'github.com') return 'https://api.github.com';
+  if (host === 'github.com' || host === 'www.github.com') return 'https://api.github.com';
   return `https://${host}/api/v3`;
 }

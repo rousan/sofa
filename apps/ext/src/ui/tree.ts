@@ -30,10 +30,8 @@ export interface DirNode {
 export interface FileNode {
   /** Discriminant for the node union. */
   type: 'file';
-  /** File name without its directories. */
-  name: string;
-  /** Full path of the file. */
-  path: string;
+  /** File name, and the full path it came from. */
+  name: string; path: string;
   /** The diff record this row represents. */
   file: DiffFile;
 }
@@ -51,7 +49,10 @@ export interface TreeOptions {
   files: DiffFile[];
   /** Path of the file currently open in the viewer. */
   selectedPath: string | null;
-  /** Paths the user has marked viewed. */
+  /**
+   * Paths the user has marked viewed. Kept as a set because the tree asks
+   * about every row on every render.
+   */
   viewed: Set<string>;
   /** Directory paths the user has collapsed. */
   collapsed: Set<string>;
